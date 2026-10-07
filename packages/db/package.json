@@ -1,0 +1,8 @@
+{
+  "name": "@equbflow/db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate": "echo 'Run migrations against SUPABASE db'"
+  }
+}

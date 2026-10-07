@@ -1,7 +1,7 @@
 # Evidence Spec
 
 **Project (working title):** EqubFlow
-**Version:** 0.1 (Sprint 2, draft for team review)
+**Version:** 0.2 (adds custody type to the wallet registry)
 **Parents:** 01-BRS v0.3, 02-SRS v0.2, 03-Threat Model v0.1
 **Purpose:** define, before building, exactly what data proves each claim we will make to judges, where it comes from, and how a reviewer who was never in the room can check it. Judging is asynchronous, so evidence that cannot be verified alone does not count.
 
@@ -73,12 +73,14 @@ A committed file listing every wallet the project uses:
 | Address | Public address |
 | Mode | `real`, `simulated`, `sandbox`, or `system` (group treasury) |
 | Stake | `testnet` or `mainnet` |
+| Custody | `app-managed` (our backend holds the keys, each action needs the member's own sign-in approval) or `self-custody` |
+| Stake | `testnet` or `mainnet` |
 | Owner role | Member device, persona runner, sandbox, or system |
 | Funding source | Faucet, another registered wallet, or external |
 | Added on | Date |
 
 Rules:
-- A `real` wallet is created and controlled by the member on their own device. Team members count only if each one holds their own wallet and makes their own decisions.
+- A `real` participant authenticates with their own email, approves each contribution themselves, and appears in the registry with a custody type. Custody type is stated openly in the README and video. People who do not make their own decisions (for example someone whose actions are clicked for them) are `simulated`, not `real`.
 - `simulated` wallets are named by persona (for example `late-payer`) so a reviewer can tell them apart.
 - No transfers between registered wallets purely to raise volume. Protocol flows (contribution, payout, refund, float) are the only counted movements.
 - Any wallet not in the registry is excluded from all metrics.

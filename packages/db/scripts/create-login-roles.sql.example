@@ -1,0 +1,23 @@
+-- packages/db/scripts/create-login-roles.sql.example
+-- Run manually in Supabase SQL editor or via psql as postgres admin.
+-- Passwords must NEVER be committed to source control or logged.
+
+-- Authorizer process login role
+create role authorizer_user with login password 'CHANGE_ME_IN_PRODUCTION';
+grant authorizer to authorizer_user;
+
+-- Executor process login role
+create role executor_user with login password 'CHANGE_ME_IN_PRODUCTION';
+grant executor to executor_user;
+
+-- Agent process login role
+create role agent_user with login password 'CHANGE_ME_IN_PRODUCTION';
+grant agent to agent_user;
+
+-- Watcher process login role
+create role watcher_user with login password 'CHANGE_ME_IN_PRODUCTION';
+grant watcher to watcher_user;
+
+-- Evidence / review read-only login role
+create role evidence_user with login password 'CHANGE_ME_IN_PRODUCTION';
+grant evidence to evidence_user;

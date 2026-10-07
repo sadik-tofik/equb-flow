@@ -1,7 +1,7 @@
 # Threat Model
 
 **Project (working title):** EqubFlow
-**Version:** 0.1 (Sprint 2, draft for team review)
+**Version:** 0.2 (adds T32 and reframes T10 and T11 after the PDR)
 **Parents:** 01-BRS v0.3, 02-SRS v0.2
 **Status:** DRAFT. Technology-neutral on purpose; the PDR will pick mechanisms and the TDD will bind each control to a component.
 
@@ -63,8 +63,8 @@ Priority: **H** must be mitigated and tested before any real participant joins; 
 
 | ID | Threat | Attack vector | Control | Trace | Scenario | Pri |
 |---|---|---|---|---|---|---|
-| T10 | Replay or reuse of a transfer (T) | The same transaction hash or reference claimed twice | Transaction hash unique per credit; reference single-use per member per round | FR-07 | S-DUP | H |
-| T11 | Spoofed sender or forged reference (S) | Another wallet pays with a member's reference | Credit only when sender matches the member's bound wallet, otherwise `unmatched` and held | FR-07, D1 | S-SPOOF | H |
+| T10 | Replay or reuse of a transfer (T) | The same transaction hash or reference claimed twice | Transaction hash unique per credit; one credited payment per member per round unless a rule allows installments | FR-07 | S-DUP | H |
+| T11 | Spoofed sender or forged reference (S) | Another wallet pays the expected amount hoping to be credited as the member (USDC transfers carry no memo, so matching relies on the bound sender) | Credit only when sender matches the member's bound wallet, otherwise `unmatched` and held | FR-07, D1 | S-SPOOF | H |
 | T12 | Wrong or lookalike token (S) | A different token contract with the same symbol | Exact token contract match only; anything else is `wrong_token` | FR-07 | S-TOKEN | H |
 | T13 | Dust, decimal and rounding exploits (T) | Off-by-1-base-unit or 6-versus-2-decimal payments hidden by rounding | Integer base units; any difference becomes a visible discrepancy | FR-09, NFR-01 | S-DUST | H |
 | T14 | Wrong destination (S) | Contribution sent to a stale or lookalike address | Only the issued destination counts; others are `wrong_destination` and reported to the sender | FR-07 | S-DEST | M |
@@ -100,6 +100,7 @@ Priority: **H** must be mitigated and tested before any real participant joins; 
 | T29 | Privacy leak through the public audit view (I) | Pseudonyms and truncated addresses only; consent screen for real participants; no government IDs collected | M |
 | T30 | Social engineering of the organizer (S) | Rule freeze, unanimous approvals, and notifications to all members on any sensitive change | M |
 | T31 | Model outage causing unsafe fallback (D, E) | On outage the system takes no fund-moving action and routes to a human | H |
+| T32 | App-managed custody exposes member wallets if the server is compromised (I, E) | Executor isolated from web and agent processes with no public route; wallet credentials only in the executor; each fund-moving action needs the member's fresh approval and passes authorization; testnet funds only; custody type disclosed | H |
 
 ## 6. Attack scenario suite (feeds FR-28 and FR-29)
 
@@ -112,7 +113,7 @@ The persona runner executes each scenario against `simulated` wallets and record
 | S-INJ-3 | Invoice or attachment text instructs the agent to mark itself paid |
 | S-HALL | Chat message claims payment with no transfer |
 | S-DUP | Same transaction hash submitted twice |
-| S-SPOOF | Third wallet pays with a member's reference |
+| S-SPOOF | Third wallet pays a member's expected amount |
 | S-TOKEN | Lookalike token sent |
 | S-DUST | Payment short by 1 base unit; payment in truncated decimals |
 | S-DEST | Payment to a stale address |

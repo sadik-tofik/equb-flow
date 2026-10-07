@@ -1,8 +1,8 @@
 # SRS: Software Requirements Specification
 
 **Project (working title):** EqubFlow
-**Version:** 0.2 (Sprint 1, adds invoice mode and stake labeling)
-**Parent document:** 01-BRS v0.3
+**Version:** 0.3 (Sprint 1, aligned with the PDR and TDD)
+**Parent document:** 01-BRS v0.4
 **Status:** DRAFT. Requirements marked **[DECISION]** need a team answer before this becomes v1.0.
 **Rule of this document:** it states *what the system must do and how we will know*, not how it is built. Technology choices belong in the PDR and TDD.
 
@@ -41,7 +41,7 @@
 | ID | Requirement | Pri | Traces |
 |---|---|---|---|
 | FR-01 | The organizer can create a group by setting: name, member count (3 to 12), fixed contribution amount, round cadence, grace period for late payment, payout-order method, and default-handling policy. | M | BR-01 |
-| FR-02 | Each member joins by acknowledging the exact rule set (shown in full) and binding one wallet address to their identity. | M | BR-01, BRU-6 |
+| FR-02 | Each member joins by acknowledging the exact rule set (shown in full) and binding one wallet address to their identity (created for them by the system under app-managed custody, or supplied by them). | M | BR-01, BRU-6 |
 | FR-03 | Rules are versioned. Once the first round opens, rules are frozen for that cycle; a change requires approval by all members and takes effect only in the next cycle. | M | BRU-6 |
 | FR-04 | The system rejects group creation or a join if any required rule is missing, out of range, or ambiguous. | M | BR-01 |
 
@@ -54,8 +54,8 @@ AC-FR-03: Given a running cycle, an attempt to change a rule through any interfa
 
 | ID | Requirement | Pri | Traces |
 |---|---|---|---|
-| FR-05 | For each round the system issues each member a payment request with: destination, exact expected amount, deadline, and a unique reference that identifies member and round. | M | BR-02 |
-| FR-06 | The chain watcher independently observes USDC transfers to the group's destination and records for each: transaction hash, token, amount in base units, sender address, reference (if any), block time and finality status. | M | BR-03 |
+| FR-05 | For each round the system issues each member a payment request with: destination, exact expected amount, deadline, and the one bound sender address that can satisfy it. Matching does not rely on memos or references. | M | BR-02 |
+| FR-06 | The chain watcher independently observes USDC transfers to the group's destination and records for each: transaction hash, token, amount in base units, sender address, block time and finality status. | M | BR-03 |
 | FR-07 | Each observed transfer is classified deterministically, without any model: `exact`, `partial`, `over`, `duplicate`, `late`, `wrong_token`, `wrong_destination`, `unmatched`. | M | BR-03, BR-04 |
 | FR-08 | A contribution is credited to a member only after its transfer is final and classified `exact`, or after an approved resolution (FR-12) for other classes. No message, claim or model output can credit a contribution. | M | BR-03, BRU-2 |
 | FR-09 | The system keeps a visible discrepancy ledger. Every non-zero difference appears as an entry with amount, member, round, cause class, status (`open`, `proposed`, `resolved`, `refunded`) and owner. No difference is ever absorbed into a rounding, write-off or catch-all balance. | M | BR-04, BRU-3 |
@@ -230,6 +230,7 @@ Entities: Group, RuleSet (versioned), Member, Wallet, Round, PaymentRequest, Obs
 
 ## 11. Change log
 
+- **v0.3:** FR-05, FR-06 and FR-02 aligned with the PDR (bound-sender matching, no memo reliance, app-managed wallet creation); `pending_finality` state added in the TDD classifier.
 - **v0.2:** added FR-39 (invoice mode) and FR-40 (stake labeling) after reconciling with the official FAQ.
 
 ## 12. Next document
