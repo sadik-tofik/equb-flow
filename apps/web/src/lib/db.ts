@@ -33,27 +33,57 @@ export function getAuthorizerPool(): pg.Pool {
 /**
  * Creates a PostgreSQL client configured with the authenticated user session
  * for RLS-enforced queries (is_member).
+ * Runs within a transaction with SET LOCAL ROLE authenticated and set_config('request.jwt.claims', ...).
  */
 export async function getRlsClient(userId: string): Promise<{
   client: pg.PoolClient;
-  release: () => void;
+  release: () => Promise<void>;
   query: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>;
 }> {
   const pool = getAuthorizerPool();
   const client = await pool.connect();
 
   try {
-    // Set authenticated role and request.jwt.claim.sub for RLS
-    await client.query("SET LOCAL ROLE authenticated");
+    await client.query('BEGIN');
+    await client.query('SET LOCAL ROLE authenticated');
+    const claims = JSON.stringify({ sub: userId, role: 'authenticated' });
+    await client.query("SELECT set_config('request.jwt.claims', $1, true)", [claims]);
     await client.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [userId]);
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     client.release();
     throw err;
   }
 
+  let released = false;
   return {
     client,
-    release: () => client.release(),
+    release: async () => {
+      if (released) return;
+      released = true;
+      try {
+        await client.query('COMMIT');
+      } catch {
+        await client.query('ROLLBACK').catch(() => {});
+      } finally {
+        client.release();
+      }
+    },
     query: (sql: string, params?: unknown[]) => client.query(sql, params),
   };
+}
+
+/**
+ * Runs a query function under RLS as role `authenticated` with verified user ID set in JWT claims.
+ */
+export async function withRlsClient<T>(
+  userId: string,
+  fn: (client: { query: (sql: string, params?: unknown[]) => Promise<pg.QueryResult> }) => Promise<T>
+): Promise<T> {
+  const rls = await getRlsClient(userId);
+  try {
+    return await fn(rls);
+  } finally {
+    await rls.release();
+  }
 }

@@ -2,7 +2,7 @@
 import { type NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser } from '@/lib/auth';
-import { getAuthorizerPool } from '@/lib/db';
+import { getRlsClient } from '@/lib/db';
 import { formatUsdcBaseUnits } from '@/lib/money';
 import type { RoundView, ContributionItem } from '@/lib/types';
 
@@ -11,18 +11,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string; n: string }> }
 ) {
   const sessionUser = await getSessionUser(req);
+  if (!sessionUser) {
+    return apiError('not_signed_in', 'Sign in required', 401);
+  }
+
   const { id: groupId, n } = await params;
   const roundNo = parseInt(n, 10);
   if (Number.isNaN(roundNo) || roundNo < 1) {
     return apiError('validation_failed', 'Invalid round number', 400);
   }
 
-  const pool = getAuthorizerPool();
-  const client = await pool.connect();
+  const rls = await getRlsClient(sessionUser.userId);
 
   try {
-    // 1. Fetch group & check membership
-    const grpRes = await client.query(
+    // 1. Fetch group & check membership under RLS
+    const grpRes = await rls.query(
       `SELECT g.*, count(m.id) as actual_members
        FROM public.groups g
        LEFT JOIN public.members m ON m.group_id = g.id
@@ -31,24 +34,12 @@ export async function GET(
       [groupId]
     );
     if (grpRes.rows.length === 0) {
-      return apiError('not_a_member', 'Group not found', 404);
+      return apiError('not_a_member', 'You are not a member of this group', 403);
     }
     const group = grpRes.rows[0];
 
-    if (sessionUser) {
-      const memRes = await client.query(
-        `SELECT id FROM public.members WHERE group_id = $1 AND user_id = $2`,
-        [groupId, sessionUser.userId]
-      );
-      if (memRes.rows.length === 0 && group.created_by !== sessionUser.userId && !group.public_audit) {
-        return apiError('not_a_member', 'You are not a member of this group', 403);
-      }
-    } else if (!group.public_audit) {
-      return apiError('not_signed_in', 'Sign in required', 401);
-    }
-
     // 2. Fetch round
-    const roundRes = await client.query(
+    const roundRes = await rls.query(
       `SELECT r.*, m.alias as recipient_alias, m.wallet_address as recipient_wallet
        FROM public.rounds r
        JOIN public.members m ON m.id = r.recipient_member_id
@@ -62,7 +53,7 @@ export async function GET(
     const roundRow = roundRes.rows[0];
 
     // 3. Fetch all members and payment requests/contributions for this round
-    const membersRes = await client.query(
+    const membersRes = await rls.query(
       `SELECT m.id, m.alias, m.wallet_address,
               pr.id as request_id, pr.status as pr_status, pr.expected_amount,
               c.id as contribution_id, c.amount as credited_amount, c.credited_at,
@@ -106,7 +97,7 @@ export async function GET(
     const potDisplay = `${formatUsdcBaseUnits(totalCredited)} / ${formatUsdcBaseUnits(potTotal)}`;
 
     // Payout transaction if released
-    const payoutRes = await client.query(
+    const payoutRes = await rls.query(
       `SELECT a.tx_hash, a.status
        FROM public.authorized_actions a
        WHERE a.group_id = $1 AND a.round_id = $2 AND a.kind = 'payout_release'`,
@@ -143,6 +134,6 @@ export async function GET(
   } catch (err: any) {
     return apiError('try_again_later', err?.message || 'Failed to retrieve round', 500);
   } finally {
-    client.release();
+    await rls.release();
   }
 }

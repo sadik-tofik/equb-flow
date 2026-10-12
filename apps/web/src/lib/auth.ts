@@ -21,14 +21,29 @@ function getSupabaseClient() {
 
 /**
  * Extracts the authenticated user identity strictly from the session/cookies or Authorization header.
- * Never from request body!
+ * It verifies the Supabase session on the server (access token with Supabase).
+ * In production mode, it accepts NO identity headers (e.g. x-user-id).
+ * Any test bypass strictly requires NODE_ENV === 'test' AND ALLOW_TEST_AUTH_BYPASS === 'true'.
  */
 export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser | null> {
-  // 1. Check Authorization header if present
-  const authHeader = req ? req.headers.get('authorization') : null;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim();
-    if (token) {
+  const isTestMode = process.env.NODE_ENV === 'test';
+  const isBypassEnabled = process.env.ALLOW_TEST_AUTH_BYPASS === 'true';
+  const allowTestBypass = isTestMode && isBypassEnabled;
+
+  // 1. Test bypass mode: strictly restricted to NODE_ENV='test' AND ALLOW_TEST_AUTH_BYPASS='true'
+  if (allowTestBypass && req) {
+    const testUserId = req.headers.get('x-user-id');
+    if (testUserId) {
+      return {
+        userId: testUserId,
+        email: req.headers.get('x-user-email') || `${testUserId}@test.local`,
+        lastSignInAt: req.headers.get('x-signin-time') || new Date().toISOString(),
+      };
+    }
+
+    const authHeader = req.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
       const firstColon = token.indexOf(':');
       const secondColon = token.indexOf(':', firstColon + 1);
       if (firstColon !== -1 && secondColon !== -1) {
@@ -41,57 +56,67 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
     }
   }
 
-  // 2. Check cookies from request or cookies() store
-  let sessionToken: string | undefined;
-  let lastSignInStr: string | undefined;
-
-  if (req?.cookies) {
-    sessionToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    lastSignInStr = req.cookies.get(SIGNIN_TIME_COOKIE_NAME)?.value;
+  // 2. Production / Secure path:
+  // Any identity headers (x-user-id, etc.) are strictly ignored!
+  // Extract token from Authorization header or cookie
+  let token: string | undefined;
+  const authHeader = req ? req.headers.get('authorization') : null;
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim();
   }
 
-  if (!sessionToken) {
+  if (!token && req?.cookies) {
+    token =
+      req.cookies.get('sb-access-token')?.value ||
+      req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  }
+
+  if (!token) {
     try {
       const cookieStore = await cookies();
-      sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-      lastSignInStr = lastSignInStr || cookieStore.get(SIGNIN_TIME_COOKIE_NAME)?.value;
+      token =
+        cookieStore.get('sb-access-token')?.value ||
+        cookieStore.get(SESSION_COOKIE_NAME)?.value;
     } catch {
       // Cookies not available outside request scope
     }
   }
 
-  lastSignInStr = lastSignInStr || new Date().toISOString();
+  if (!token) {
+    return null;
+  }
 
-  // 3. Fallback to Supabase SSR session if available
+  // Verify access token with Supabase on the server
   const supabase = getSupabaseClient();
-  if (supabase && sessionToken) {
+  if (supabase) {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(sessionToken);
+      const { data: { user }, error } = await supabase.auth.getUser(token);
       if (user && !error) {
         return {
           userId: user.id,
           email: user.email || '',
-          lastSignInAt: user.last_sign_in_at || lastSignInStr,
+          lastSignInAt: user.last_sign_in_at || new Date().toISOString(),
         };
       }
     } catch {
-      // Ignore and fallback to cookie session token parsing
+      // Token verification failed
     }
   }
 
-  if (sessionToken) {
+  // Fallback: If in test mode with bypass allowed, check cookie session payload
+  if (allowTestBypass) {
     try {
-      const decoded = Buffer.from(sessionToken, 'base64').toString('utf-8');
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
       const parsed = JSON.parse(decoded);
       if (parsed.userId && parsed.email) {
         return {
           userId: parsed.userId,
           email: parsed.email,
-          lastSignInAt: parsed.lastSignInAt || lastSignInStr,
+          lastSignInAt: parsed.lastSignInAt || new Date().toISOString(),
         };
       }
     } catch {
-      // Invalid cookie format
+      // Invalid format
     }
   }
 
