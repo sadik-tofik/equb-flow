@@ -2,8 +2,8 @@
 
 **Project (working title):** EqubFlow, an autonomous Equb (rotating savings group) treasury agent with a built-in proof-of-receipt reconciler
 **Event:** Tameion Agents Hackathon (Canteen x Circle), settled in USDC on Arc
-**Version:** 0.4 (Sprint 0, stake and participant decisions recorded)
-**Deadline:** October 10, 2026, 11:59 PM ET (about 6:59 AM Oct 11, Addis Ababa)
+**Version:** 0.5 (deadline extended to Oct 17)
+**Deadline:** October 17, 2026, 11:59 PM ET (about 6:59 AM Oct 18, Addis Ababa); extended by the organizers from Oct 10
 **Status:** DRAFT. Nothing here is locked until the review checklist at the end is signed off.
 
 **Source tags** (used throughout so unverified claims never pass as findings):
@@ -125,7 +125,7 @@ Two build tracks (playbook two-MVP split), to be detailed in the PDR:
 
 ## 10. Constraints
 
-- Hard deadline: Oct 10, 11:59 PM ET. Judging is asynchronous, with no live demo day. `[Sponsor]`
+- Hard deadline: **Oct 17**, 11:59 PM ET (extended from Oct 10 by the organizers; about 6:59 AM Oct 18 in Addis Ababa). Judging is asynchronous, with no live demo day. Resubmission is allowed any number of times before the deadline. `[Sponsor]`
 - Deliverables: public GitHub repo, video under 3 minutes, traction answers; live link strongly encouraged. `[Sponsor]`
 - Must settle in USDC on Arc. `[Sponsor]`
 - Testnet by default; any mainnet use only with legal and risk review. `[Assumption]`
@@ -177,6 +177,7 @@ Two build tracks (playbook two-MVP split), to be detailed in the PDR:
 - **v0.3:** added FAQ facts to the business context; added BO-6, BR-15, BR-16 and open decisions 6 and 7; recorded the delta baseline.
 
 - **v0.4:** recorded the testnet-only decision and the participant sources for the Equb group and invoice pilots.
+- **v0.5:** deadline moved from Oct 10 to Oct 17, 11:59 PM ET.
 
 ## 16. Next document
 

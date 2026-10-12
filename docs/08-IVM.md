@@ -1,7 +1,7 @@
 # IVM: Implementation and Verification Matrix
 
 **Project (working title):** EqubFlow
-**Version:** 0.1 (Sprint 5)
+**Version:** 0.2 (status and spike updates through Oct 7)
 **Parents:** 02-SRS v0.3, 03-Threat Model v0.2, 04-Evidence Spec v0.2, 05-PDR v0.3, 06-TDD v0.1
 **Purpose:** every requirement, threat and evidence claim maps to a component, a way to verify it, a named test, and the milestone that delivers it. This is the checklist for "done" and satisfies NFR-13.
 
@@ -17,24 +17,24 @@
 | FR-01 | The organizer can create a group by setting: name, member count (3 to 12),... | M | BR-01 | web, db | U D E | FR01-create-valid; FR01-create-invalid | - | - | M2 | Coding + UI agent | todo |
 | FR-02 | Each member joins by acknowledging the exact rule set (shown in full) and... | M | BR-01, BRU-6 | web, domain, db | I E | FR02-join-ack-rules; FR02-wallet-created | T5 | C1 | M2 | Coding + UI agent | todo |
 | FR-03 | Rules are versioned. Once the first round opens, rules are frozen for that... | M | BRU-6 | db, domain | D S | FR03-rules-frozen; S-RULE | T6 | - | M2 | Coding agent | todo |
-| FR-04 | The system rejects group creation or a join if any required rule is... | M | BR-01 | domain | U | FR04-rule-validation | - | - | M1 | Coding agent | todo |
+| FR-04 | The system rejects group creation or a join if any required rule is... | M | BR-01 | domain | U | FR04-rule-validation | - | - | M1 | Coding agent | tested (domain unit tests, 52 passing, Oct 2; scenarios pending) |
 | FR-05 | For each round the system issues each member a payment request with:... | M | BR-02 | domain, worker | U I | FR05-payment-request-bound-sender | T11 | - | M2 | Coding agent | todo |
 | FR-06 | The chain watcher independently observes USDC transfers to the group's... | M | BR-03 | worker | I | FR06-watcher-records-final-transfers | T9, T10 | C3 | M2 | Coding agent | todo |
-| FR-07 | Each observed transfer is classified deterministically, without any model:... | M | BR-03, BR-04 | domain | U S | FR07-classifier-8-classes; S-DUP; S-SPOOF; S-TOKEN; S-DEST; S-DUST | T10-T14 | C9 | M1 | Coding agent | todo |
-| FR-08 | A contribution is credited to a member only after its transfer is final... | M | BR-03, BRU-2 | domain, authorizer | U S | FR08-no-credit-without-final-transfer; S-HALL; S-FINAL | T2, T9 | C6 | M1 | Coding agent | todo |
-| FR-09 | The system keeps a visible discrepancy ledger. Every non-zero difference... | M | BR-04, BRU-3 | domain, db | U S | FR09-discrepancy-1-base-unit; S-DUST | T13 | C9 | M1 | Coding agent | todo |
+| FR-07 | Each observed transfer is classified deterministically, without any model:... | M | BR-03, BR-04 | domain | U S | FR07-classifier-8-classes; S-DUP; S-SPOOF; S-TOKEN; S-DEST; S-DUST | T10-T14 | C9 | M1 | Coding agent | tested (domain unit tests, 52 passing, Oct 2; scenarios pending) |
+| FR-08 | A contribution is credited to a member only after its transfer is final... | M | BR-03, BRU-2 | domain, authorizer | U S | FR08-no-credit-without-final-transfer; S-HALL; S-FINAL | T2, T9 | C6 | M1 | Coding agent | tested (domain unit tests, 52 passing, Oct 2; scenarios pending) |
+| FR-09 | The system keeps a visible discrepancy ledger. Every non-zero difference... | M | BR-04, BRU-3 | domain, db | U S | FR09-discrepancy-1-base-unit; S-DUST | T13 | C9 | M1 | Coding agent | tested (domain unit tests, 52 passing, Oct 2; scenarios pending) |
 | FR-10 | After a contribution is credited, the member can view a receipt containing... | M | BR-02 | web | E | FR10-receipt-view | - | C1 | M2 | UI agent | todo |
 | FR-11 | For every classified anomaly the agent produces a proposal chosen from a... | M | BR-04, BR-06 | agent | U S | FR11-fixed-action-set; S-INJ-1..3 | T1 | C5 | M4 | Coding agent | todo |
 | FR-12 | A proposal takes effect only after the deterministic rule check confirms... | M | BR-04, BRU-1 | domain, authorizer | U S | FR12-rule-check-rejects-violations | T1 | C7 | M4 | Coding agent | todo |
 | FR-13 | If the agent or model is unavailable, times out, or returns output that... | M | BRU-1 | agent | U S | FR13-model-outage-no-funds-move | T31 | C5 | M4 | Coding agent | todo |
 | FR-14 | Agent explanations are stored with the decision record and shown to... | M | BR-08 | agent, web | E | FR14-explanation-visible | - | C6 | M4 | Coding + UI agent | todo |
 | FR-15 | The enforcement layer alone can authorize a payout. The agent can prepare... | M | BR-05, BRU-1 | authorizer, executor, contract | I C S | FR15-only-enforcement-authorizes; EqubGate-I7 | T1, T3 | C7 | M2 | Coding agent | todo |
-| FR-16 | A payout is authorized only if all hold: recipient is the scheduled member... | M | BR-05 | domain | U S | FR16-condition-matrix; S-EARLY; S-PAUSE; S-APPR | T4, T7, T8 | C7 | M1 | Coding agent | todo |
+| FR-16 | A payout is authorized only if all hold: recipient is the scheduled member... | M | BR-05 | domain | U S | FR16-condition-matrix; S-EARLY; S-PAUSE; S-APPR | T4, T7, T8 | C7 | M1 | Coding agent | tested (domain unit tests, 52 passing, Oct 2; scenarios pending) |
 | FR-17 | Payout execution is idempotent: retries, restarts and duplicate triggers... | M | BR-05 | executor, db, contract | D I S C | FR17-idempotent-payout; S-RACE; EqubGate-I2 | T3 | C11 | M2 | Coding agent | todo |
 | FR-18 | After execution the system records the payout receipt with the transaction... | M | BR-05, BR-08 | executor | I | FR18-payout-receipt-and-finality | T9 | C2 | M2 | Coding agent | todo |
 | FR-19 | The payout order is set by the group's chosen method at cycle start: fixed... | M | BR-06 | domain | U | FR19-order-fixed; FR19-verifiable-random | - | - | M2 | Coding agent | todo |
 | FR-20 | Every decision, including refusals, waits and escalations, writes an entry... | M | BR-08, BRU-4 | authorizer, db | U D | FR20-record-complete-for-demo-scenarios | T16 | C6 | M2 | Coding agent | todo |
-| FR-21 | Entries are append-only and cryptographically chained so that any... | M | BR-08 | db | D S | FR21-append-only-chain; S-LOG | T16 | C8 | M2 | Coding agent | todo |
+| FR-21 | Entries are append-only and cryptographically chained so that any... | M | BR-08 | db | D S | FR21-append-only-chain; S-LOG | T16 | C8 | M2 | Coding agent | tested (database permission and integrity tests passed on sandbox and local Postgres, Oct 3; scenario and verify-CLI parts pending) |
 | FR-22 | Any reviewer can run a verification that recomputes the chain and reports... | M | BR-08 | cli | U S | FR22-verify-detects-tamper | T16 | C8 | M5 | Coding agent | todo |
 | FR-23 | Entries link to the on-chain transactions they reference. | M | BR-08 | web, db | E | FR23-records-link-to-chain | - | C10 | M4 | Coding + UI agent | todo |
 | FR-24 | An approval inbox lists items awaiting a human, with the agent's proposal,... | M | BR-09 | web, domain | E S | FR24-approval-inbox; S-APPR | T7 | C5 | M4 | Coding + UI agent | todo |
@@ -45,7 +45,7 @@
 | FR-29 | A published test report lists each scenario, expected result, actual... | S | BR-11 | scenarios | S | FR29-test-report-generated | - | C7 | M5 | Coding agent | todo |
 | FR-30 | Traction metrics are computed from on-chain and system data, split by... | M | BR-12, BR-14 | cli, web | U M | FR30-metrics-split-by-mode-and-stake | T17, T18 | C1, C3 | M7 | Coding agent | todo |
 | FR-31 | A reviewer sandbox creates an isolated `sandbox` group with scripted... | S | BR-13 | web, scenarios | E | FR31-sandbox-cycle-and-reset | T17 | C5 | M7 | Coding + UI agent | todo |
-| FR-32 | Roles are enforced: organizer, member, reviewer (read-only). A member can... | M | BR-01 | web, db | D E A | FR32-roles-and-rls-matrix | T20 | - | M2 | Coding agent | todo |
+| FR-32 | Roles are enforced: organizer, member, reviewer (read-only). A member can... | M | BR-01 | web, db | D E A | FR32-roles-and-rls-matrix | T20 | - | M2 | Coding agent | tested (database permission and integrity tests passed on sandbox and local Postgres, Oct 3; scenario and verify-CLI parts pending) |
 | FR-33 | A public read-only audit view shows a group's decision record and chain... | S | BR-08, BR-13 | web | E | FR33-public-audit-no-private-data | T29 | C8 | M7 | Coding + UI agent | todo |
 | FR-34 | A member can request an order swap; the agent evaluates it (section 4, D5)... | S | BR-06 | domain, web | U E | FR34-order-swap-requires-approvals | - | C5 | M6 | Coding agent | todo |
 | FR-35 | If a member misses a contribution after the grace period, the agent... | M | BR-06 | domain, agent | U S | FR35-default-handling-D4-within-reserve | - | C5 | M4 | Coding agent | todo |
@@ -132,13 +132,13 @@ Coverage check: 32 threats, 22 High, each High threat has at least one named tes
 
 | # | Spike | Status |
 |---|---|---|
-| 1 | Developer-controlled wallet sends USDC from code | Not started |
+| 1 | Developer-controlled wallet sends USDC from code | **Passed** (Oct 7, tx 0xecb2...8edb, fee 0.0015 USDC) |
 | 2 | Agent wallet calls a contract | **Passed** (Oct 2, approve tx 0x5092...9009) |
 | 3 | User-controlled wallets on Arc Testnet | Not started |
-| 4 | USDC ERC-20 events and balance semantics | Partly known (decimals 18 native, 6 ERC-20); events not tested |
-| 5 | Finality rule | Not started |
-| 6 | USYC approve, deposit, redeem | Partial: approve passed, deposit reverted outside reported window; retry 15:31-21:00 Addis |
-| 7 | RPC rate limits | Not started |
+| 4 | USDC ERC-20 events and balance semantics | Partial: address-less log filter accepted; real transfer log and native-send behavior not yet shown |
+| 5 | Finality rule | Passed (finalized tag equals latest; confirm over samples) |
+| 6 | USYC approve, deposit, redeem | **Passed** (Oct 3): 1 USDC deposit gave 877,691 USYC shares; approve and redeem completed; all three transactions COMPLETE |
+| 7 | RPC rate limits | Passed (50 concurrent requests all OK; poll every 2 to 3 s) |
 | 8 | Supabase custom roles through the pooler | Not started |
 | 9 | Hosted model returns valid JSON | **Passed** (gemini-3.1-flash-lite 10/10, 1.4 s median) |
 

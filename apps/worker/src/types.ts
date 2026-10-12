@@ -40,4 +40,5 @@ export interface ProcessedTransferResult {
   mode?: 'real' | 'simulated' | 'sandbox' | null;
   stake?: 'testnet' | 'mainnet' | null;
   written: boolean;
+  note?: string | null;
 }

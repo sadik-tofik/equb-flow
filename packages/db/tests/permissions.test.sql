@@ -165,6 +165,8 @@ $$;
 do $$
 declare
   v_action_id uuid := '55555555-5555-5555-5555-555555555551'::uuid;
+  v_group_id uuid := '10000000-0000-0000-0000-000000000001'::uuid;
+  v_member_id uuid := '30000000-0000-0000-0000-000000000001'::uuid;
 begin
   raise notice '--- Running Executor Role Tests ---';
 
@@ -198,6 +200,53 @@ begin
   exception when others then
     reset role;
     raise exception 'TEST FAILED: executor could not update status: %', sqlerrm;
+  end;
+
+  -- d) wallet provisioning: update of destination_address on groups must succeed
+  begin
+    set local role executor;
+    update groups set destination_address = '0x9999999999999999999999999999999999999999' where id = v_group_id;
+    update groups set destination_address = '0x3333333333333333333333333333333333333333' where id = v_group_id;
+    reset role;
+    raise notice '  [PASS] executor: update of destination_address on groups succeeded';
+  exception when others then
+    reset role;
+    raise exception 'TEST FAILED: executor could not update destination_address: %', sqlerrm;
+  end;
+
+  -- e) wallet provisioning: update of wallet_address on members must succeed
+  begin
+    set local role executor;
+    update members set wallet_address = '0x8888888888888888888888888888888888888888' where id = v_member_id;
+    update members set wallet_address = '0x1111111111111111111111111111111111111111' where id = v_member_id;
+    reset role;
+    raise notice '  [PASS] executor: update of wallet_address on members succeeded';
+  exception when others then
+    reset role;
+    raise exception 'TEST FAILED: executor could not update wallet_address: %', sqlerrm;
+  end;
+
+  -- f) wallet provisioning: insert into wallet_registry must succeed
+  begin
+    set local role executor;
+    insert into wallet_registry (address, mode, stake, custody, owner_role)
+    values ('0x8888888888888888888888888888888888888888', 'real', 'testnet', 'app_managed', 'member')
+    on conflict (address) do nothing;
+    reset role;
+    raise notice '  [PASS] executor: insert into wallet_registry succeeded';
+  exception when others then
+    reset role;
+    raise exception 'TEST FAILED: executor could not insert into wallet_registry: %', sqlerrm;
+  end;
+
+  -- g) executor cannot update non-provisioning columns on groups (e.g. cadence_seconds)
+  begin
+    set local role executor;
+    update groups set cadence_seconds = 7200 where id = v_group_id;
+    raise exception 'TEST FAILED: executor was able to update cadence_seconds on groups!';
+  exception when insufficient_privilege then
+    reset role;
+    raise notice '  [PASS] executor: update of unauthorized column on groups refused (insufficient_privilege)';
   end;
 end;
 $$;
@@ -580,6 +629,7 @@ declare
   v_slot record;
   v_rec decision_records;
   v_action authorized_actions;
+  v_dummy int;
 begin
   raise notice '--- Running Decision Linkage & Integrity Tests ---';
 
@@ -599,10 +649,105 @@ begin
     'payout_authorized',
     null,
     'real',
-    '{"recipientMemberId":"33333333-3333-3333-3333-333333333331","amount":"1000000"}'::jsonb
+    '{"recipientMemberId":"33333333-3333-3333-3333-333333333331","amount":"1000000"}'::jsonb,
+    null,
+    now()
   );
   reset role;
   raise notice '  [PASS] authorizer: two-call append_decision_record succeeded (seq 2)';
+
+  -- a0) p_at rejected if more than 60 seconds from now()
+  begin
+    set local role authorizer;
+    perform append_decision_record(
+      v_group_a,
+      3,
+      v_rec.hash,
+      'hash_bad_time',
+      'test_time_rejected',
+      null,
+      'real',
+      '{}'::jsonb,
+      null,
+      now() - interval '5 minutes'
+    );
+    raise exception 'TEST FAILED: p_at older than 60s was accepted!';
+  exception when others then
+    if sqlerrm like '%p_at is more than 60 seconds from database time%' then
+      reset role;
+      raise notice '  [PASS] integrity: p_at > 60s from now() correctly refused';
+    else
+      reset role;
+      raise exception 'TEST FAILED: unexpected error on p_at > 60s: %', sqlerrm;
+    end if;
+  end;
+
+  -- a1) authorizer can select and update observed_transfers restricted to (class, amount_relation, late_by_seconds, matched_request_id)
+  begin
+    set local role authorizer;
+    update observed_transfers
+    set class = 'exact',
+        amount_relation = 'equal',
+        late_by_seconds = 0,
+        matched_request_id = null
+    where id = v_transfer_id;
+
+    select count(*) into v_dummy from observed_transfers where id = v_transfer_id;
+    if v_dummy <> 1 then
+      raise exception 'TEST FAILED: authorizer could not read observed_transfers!';
+    end if;
+    reset role;
+    raise notice '  [PASS] authorizer: update on restricted columns of observed_transfers succeeded';
+  exception when others then
+    reset role;
+    raise exception 'TEST FAILED: authorizer failed on allowed columns of observed_transfers: %', sqlerrm;
+  end;
+
+  -- a1_denied) authorizer cannot update unauthorized columns on observed_transfers (e.g. amount, mode, group_id, stake)
+  begin
+    set local role authorizer;
+    update observed_transfers set amount = 9999999 where id = v_transfer_id;
+    reset role;
+    raise exception 'TEST FAILED: authorizer was able to update amount on observed_transfers!';
+  exception when insufficient_privilege then
+    reset role;
+    raise notice '  [PASS] authorizer: update on unauthorized column (amount) on observed_transfers rejected';
+  when others then
+    reset role;
+    raise exception 'TEST FAILED: expected insufficient_privilege for authorizer updating amount on observed_transfers, got: %', sqlerrm;
+  end;
+
+  begin
+    set local role authorizer;
+    update observed_transfers set mode = 'sandbox' where id = v_transfer_id;
+    reset role;
+    raise exception 'TEST FAILED: authorizer was able to update mode on observed_transfers!';
+  exception when insufficient_privilege then
+    reset role;
+    raise notice '  [PASS] authorizer: update on unauthorized column (mode) on observed_transfers rejected';
+  when others then
+    reset role;
+    raise exception 'TEST FAILED: expected insufficient_privilege for authorizer updating mode on observed_transfers, got: %', sqlerrm;
+  end;
+
+  -- a2) authorizer can insert into proposals (engine-default proposals)
+  begin
+    set local role authorizer;
+    insert into proposals (group_id, decision_type, subject, action, reasoning, proposed_by)
+    values (
+      v_group_a,
+      'D2',
+      '{"transfer_id":"66666666-6666-6666-6666-666666666661"}'::jsonb,
+      'request_topup',
+      'Engine default proposal for partial payment',
+      'engine'
+    );
+    reset role;
+    raise notice '  [PASS] authorizer: insert into proposals succeeded (engine-default proposal)';
+  exception when others then
+    reset role;
+    raise exception 'TEST FAILED: authorizer failed to insert into proposals: %', sqlerrm;
+  end;
 
   -- b) sequence gap refused
   begin

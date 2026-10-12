@@ -1,6 +1,6 @@
 # Day-by-day schedule: Oct 2 to the deadline
 
-**Version:** 0.1. **Times:** Addis Ababa local (UTC+3) unless stated. New York is in daylight time (UTC-4) until November.
+**Version:** 0.4 (re-plans through Oct 6). **Times:** Addis Ababa local (UTC+3) unless stated. New York is in daylight time (UTC-4) until November.
 **Deadline:** Oct 10, 11:59 PM ET = **Oct 11, 06:59 AM Addis**. Target for the first full submission: **Oct 9**; use Oct 10 only for resubmitting.
 **Who:** **You** (human actions), **CA** (coding agent), **UI** (UI agent), **Claude** (documents and reviews). Milestones refer to `05-PDR.md` section 11; test names refer to `08-IVM.md`.
 
@@ -100,3 +100,49 @@
 ## Human tasks that cannot be automated
 
 Recruiting and onboarding people, collecting their consent, running interviews, the daily check, the Circle re-login, submitting the form, recording the video. Put each in your calendar now.
+
+
+## Re-plan (Oct 3)
+
+By Oct 3 the domain core and the database design were done but the watcher, executor, routes and gate were not, so an Oct 4 start would mean putting real people on an unaudited system, which the go/no-go rule forbids. New options (6 members; deadlines placed at waking hours, for example 09:00 and 21:00 Addis):
+
+| Option | Cadence | Round 1 opens | Cycle completes |
+|---|---|---|---|
+| A (recommended) | 12-hour rounds, 6 members | Oct 5, 21:00 | about Oct 8, 21:30 |
+| B | 12-hour rounds, 6 members | Oct 6, 21:00 | about Oct 9, 21:30 |
+| C (smaller) | 12-hour rounds, 4 members | Oct 6, 21:00 | about Oct 8, 21:30 |
+| D | 24-hour rounds, 4 members | Oct 5, 21:00 | about Oct 9, 21:30 |
+
+**Hard stop:** if the real group is not live by Oct 6, 21:00, run option C. Any 12-hour option must be disclosed as accelerated. Interviews (C14) follow within 48 hours of the cycle ending, so Option A or C leaves room before the Oct 10 deadline; Option B leaves almost none.
+
+
+## Re-plan 2 (Oct 3 evening): the deadline moved to Oct 17
+
+The organizers extended the deadline to **Sat Oct 17, 11:59 PM ET = Sun Oct 18, 06:59 AM Addis**. This supersedes every Oct 10 date above and in the PDR. The go/no-go rules stay (audit A1 before any real participant), but the pressure is lower and the cadence can be gentler.
+
+| Option | Cadence and size | Round 1 opens | Cycle completes |
+|---|---|---|---|
+| **A (recommended)** | 6 members, 24-hour rounds | Tue Oct 7, 21:00 | Mon Oct 13, 21:30 |
+| B | 6 members, 12-hour rounds | Wed Oct 8, 21:00 | Sat Oct 11, 21:30 |
+| C (hard-stop fallback) | 4 members, 24-hour rounds | Fri Oct 9, 21:00 | Tue Oct 13, 21:30 |
+
+**Hard stop:** if the real group is not live by **Fri Oct 9, 21:00**, run option C. Option A still counts as accelerated (a round a day instead of a week or month), and must be disclosed that way.
+
+Target dates: first full submission **Thu Oct 15**; interviews Oct 13 to 15; evidence freeze Oct 15; resubmit with final numbers on Oct 16 or 17. Do not wait for the last day. Submit early and often, as the organizers ask.
+
+Use the extra time for quality, not for more features: finish audit A1 and A2, run the real cycle with the finished watcher, authorizer and executor, collect several real invoices from the shop, and make the sandbox and audit view solid.
+
+
+## Re-plan 3 (calendar check: about Oct 6)
+
+The previous re-plan assumed an earlier date. By the calendar on Oct 6, the watcher exists but the authorizer service, executor, web routes and UI are not finished, so an Oct 7 start is too tight and would break the "audit before real participants" rule. Deadline unchanged: **Sat Oct 17, 11:59 PM ET = Sun Oct 18, 06:59 AM Addis**.
+
+| Option | Cadence and size | Round 1 opens | Cycle completes |
+|---|---|---|---|
+| **A (recommended)** | 6 members, 12-hour rounds | Fri Oct 9, 21:00 | Mon Oct 12, 21:30 |
+| B | 6 members, 24-hour rounds | Wed Oct 8, 21:00 (needs everything ready in two days) | Tue Oct 14, 21:30 |
+| C (fallback) | 4 members, 24-hour rounds | Fri Oct 9, 21:00 | Tue Oct 13, 21:30 |
+
+Hard stop: not live by **Sat Oct 10, 21:00** means option C with a shorter group. Audit A1 must be clean before round 1 opens. Evidence freeze Oct 15; first full submission **Thu Oct 15**; resubmit through Oct 17.
+
+Build order for Oct 6 to 8: (1) apply both migrations; (2) fix the watcher findings; (3) authorizer service; (4) executor and wallet adapter; (5) web routes and sign-in with the custom email sender; (6) alpha test with one family member; (7) audit A1.

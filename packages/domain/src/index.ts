@@ -5,3 +5,4 @@ export * from './classifier.js';
 export * from './authorizer.js';
 export * from './rules.js';
 export * from './decision-chain.js';
+export * from './payout-state.js';

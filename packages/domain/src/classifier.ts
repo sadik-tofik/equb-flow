@@ -8,6 +8,8 @@ import type {
   PaymentRequest,
 } from './types.js';
 
+export const NATIVE_MIRROR_ADDRESS = '0xfffffffffffffffffffffffffffffffffffffffe';
+
 export const eqAddr = (a: string, b: string): boolean =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -41,6 +43,17 @@ export function classify(
   }
 
   const isZero = transfer.amount === 0n;
+
+  // 1b. Native mirror log: never classify as wrong_token, record as unmatched observation with a note
+  // Store amount 0 with raw value in the note, noDiscrepancy: true (never open discrepancies for mirror logs)
+  if (eqAddr(transfer.token, NATIVE_MIRROR_ADDRESS)) {
+    return {
+      class: 'unmatched',
+      delta: 0n,
+      noDiscrepancy: true,
+      note: transfer.note ?? 'native mirror transfer (0xfffe); not converted',
+    };
+  }
 
   // 2. Token is not the exact USDC contract: wrong_token (T12, S-TOKEN)
   // Delta is 0n because we never treat fake/lookalike token amounts as USDC

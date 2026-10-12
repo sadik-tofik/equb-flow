@@ -1,7 +1,7 @@
 # PDR: Preliminary Design Review
 
 **Project (working title):** EqubFlow
-**Version:** 0.1 (Sprint 3, draft for review)
+**Version:** 0.3 (D1 and D2 accepted; hosting, database and model choices recorded as provisional)
 **Parents:** 01-BRS v0.4, 02-SRS v0.2, 03-Threat Model v0.1, 04-Evidence Spec v0.1
 **Scope:** full SRS scope (all Must and Should requirements). Nothing is cut here. The build order in section 9 sequences the work so that something demonstrable exists at every milestone; it does not remove features.
 **Status:** DRAFT. Each decision below has options, a scored comparison, a recommendation, and a "what would change my mind."
@@ -66,7 +66,7 @@ This is the biggest decision, because it defines what "cannot talk its way past"
 3. A pause flag, set by the organizer role, blocks every release.
 4. The releaser and organizer roles are distinct addresses.
 5. Emits events for cycle start, release and pause, plus an anchor event for decision-log head hashes (see D5).
-6. Holds USDC through its ERC-20 interface `[Verify]` (confirm balance semantics and decimals against the native-token view; Arc exposes USDC both as the native gas token and via an ERC-20 interface, and the two may use different decimals).
+6. Holds USDC through its ERC-20 interface. `[Known: Arc docs]` On Arc the native USDC gas token uses 18 decimals while the ERC-20 interface uses 6; all contract and accounting code uses the 6-decimal ERC-20 base units, with a single conversion point for any native-balance reads. `[Verify]` transfer events and balance semantics on testnet.
 
 ## 3. Decision D2: Member wallets (custody and sign-in)
 
@@ -124,13 +124,27 @@ The Threat Model gets a new threat for app-managed custody (T32, added in this r
 
 **Recommendation: D6-B** for the event, since the worker and executor are long-running and you are comfortable on Linux. The public sandbox and audit view run from the same host. Keep the executor on a separate container with its own secrets and no inbound public route.
 
+## 7a. Provisional hosting, database and model decisions (v0.3)
+
+**Constraint:** free or low-cost services; ability to pay overseas is not confirmed. Everything here is provisional until the developer confirms and the day-one spikes pass.
+
+- **Web:** Next.js on Vercel (Hobby plan). Scheduled jobs on Hobby run at most once a day and functions are time-limited, so no watcher or executor runs there.
+- **Database:** Supabase Postgres on the free plan, as **two projects**: `real` (real group, invoice pilots, evidence) and `sandbox` (reviewer sandbox, persona runner, simulated wallets). Same schema through migrations. Separate databases, keys and credentials enforce mode separation (T17) at the infrastructure level.
+- **Worker, executor, agent service:** on the developer's laptop at first, outbound connections only, rescanning the chain after any restart. Revisit if an always-on host becomes possible.
+- **Database roles (least privilege):** `web` (row-level security bound to the member's session), `authorizer` (may insert authorized actions), `executor` (may read authorized actions and write receipts, nothing else), `agent` (may write proposals and decision records, may not insert authorized actions), and a read-only `evidence` role. The Supabase service-role key stays on the server, never in client code, and is not used by the executor or agent. `[Verify]` how custom roles connect through the pooler.
+- **Auth:** Supabase email sign-in for members; app roles in tables; row-level security on every table, checked with the security audit prompt (checklist section 2).
+- **Free-plan risks and mitigations:** projects pause after 7 days without database activity, so a daily keepalive request (a daily Vercel cron or a scheduled GitHub Action) runs through the judging period; the free plan has no automated backups, so a daily export of the evidence data goes into the repo (no personal data); the 500 MB cap is ample if simulated-run logs are kept compact; `[Verify]` the built-in email sender's limits before onboarding several people, and use a custom email provider if needed.
+- **Model provider (decided by spike, Oct 1):** provider-neutral adapter; primary `gemini-3.1-flash-lite` on Google's free tier (10 of 10 valid, 1.4 s median, injection cases ignored), secondary NVIDIA `google/gemma-4-31b-it` (valid but queue-delayed), then the engine fallback; paid options only if payment becomes possible. Pin models by explicit name, cache every output, validate every response. The sandbox replays recorded outputs by default so it works with no live model.
+
 ## 8. Other design choices
 
-**Float and USYC (FR-36 to FR-38).** A deterministic planner computes the safe window: time until the next payout minus a buffer, capped by the share limit in the rules. The agent chooses among hold, move a bounded share, or redeem, with reasoning. `[Known]` testnet USYC needs the allowlist; `[Verify]` Teller deposit and redeem flow and a report that early testnet token contracts were non-functional stubs, so a day-one spike must confirm it works. If it fails, the system holds funds liquid (FR-38) and the claim C10 omits USYC.
+**Float and USYC (FR-36 to FR-38).** A deterministic planner computes the safe window: time until the next payout minus a buffer, capped by the share limit in the rules. The agent chooses among hold, move a bounded share, or redeem, with reasoning. `[Known]` testnet USYC needs the allowlist, which Circle granted for the treasury wallet on Oct 1. `[Known: Circle docs]` On Arc Testnet the Teller is at 0x9fdF14c5B14173D74C08Af27AebFf39240dC105A, the USYC token at 0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C and the Entitlements contract at 0xcc205224862c7641930c87679e98999d23c26113; subscribing is `deposit(assets, receiver)` after approving the Teller to spend USDC, and redeeming is `redeem(shares, receiver, account)`. `[Verify]` with a live mint and redeem, because an earlier report said early testnet token contracts were non-functional stubs. If it fails, the system holds funds liquid (FR-38) and the claim C10 omits USYC.
 
 **Invoice mode (FR-39).** The same payment request, classifier, discrepancy ledger and receipt pipeline, with a payer and invoice record instead of a member and round.
 
 **Notifications (FR-27).** In-app first; email as an option. Never include secrets or full addresses.
+
+**Judging happens after the deadline (Oct 10).** The live link must survive that period, and the host might not. So the evidence pack, the decision-record verification output and the audit view are also exported as static files committed to the repository, and the demo video stands alone. The agent receives pseudonymous identifiers only (member IDs, amounts, timestamps), never names or emails, which also keeps personal data away from any model provider.
 
 **Persona runner (FR-28) and sandbox (FR-31).** One library of scripted behaviors driving separately funded simulated wallets; the sandbox is the same scenarios against an isolated group with simulated funds and a reset button. Mode enforcement lives in the authorization step (T17).
 
@@ -202,7 +216,7 @@ The calendar is set by two dates: the first real round must start by about **Oct
 1. Create a developer-controlled wallet on Arc testnet and send a USDC transfer from code (confirms D2-A and the executor path).
 2. Call a trivial contract from that wallet type (confirms D1-C is viable).
 3. Check whether user-controlled wallets support Arc testnet and how long setup takes (D2-B).
-4. Read the USDC ERC-20 interface on Arc: decimals, balance semantics, transfer events, and its relationship to the native view.
+4. Read the USDC ERC-20 interface on Arc: balance semantics and transfer events (decimals are documented: 18 native, 6 ERC-20; confirm in practice).
 5. Confirm finality behavior and the fastest safe confirmation rule.
 6. USYC: attempt a mint and redeem once allowlisted; record result.
 7. Confirm RPC rate limits for the watcher; choose polling interval.
@@ -227,11 +241,11 @@ The calendar is set by two dates: the first real round must start by about **Oct
 
 ## 15. Open decisions for you
 
-1. Accept D1-C (layered enforcement) as the plan.
-2. Accept D2-A (app-managed wallets with per-action approval) with a spike on D2-B.
-3. Accept D6-B (single VPS with containers). Do you have a host (a spare machine with a public address, or a cloud VPS)?
-4. Which model provider and model for the agent? Cost and rate limits matter, since no credits are provided.
-5. Your Solidity comfort. With Claude as assistant it is workable, but tell me if you prefer to keep the contract as small as possible.
+1. **ACCEPTED (team):** D1-C, layered enforcement.
+2. **ACCEPTED (team):** D2-A, app-managed wallets with per-action approval, with a spike on D2-B.
+3. **PROVISIONAL (team to confirm):** hosting as in section 7a (Vercel web, Supabase database, laptop worker) instead of D6-B (single VPS), because overseas payment is not confirmed.
+4. **DECIDED by spike (Oct 1):** `gemini-3.1-flash-lite` primary, NVIDIA `gemma-4-31b-it` secondary; see TDD spike 9.
+5. **ANSWERED (team): comfortable with Solidity.** The gate keeps its minimal design, and its tests are upgraded to Foundry fuzz and invariant tests (for example: "no sequence of calls can send funds to anyone but the scheduled recipient"), which become a headline evidence artifact for claims C7 and C11.
 
 ## 16. Review checklist (gate for v1.0)
 

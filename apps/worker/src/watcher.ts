@@ -1,6 +1,6 @@
-// apps/worker/src/watcher.ts
 import {
   classify,
+  NATIVE_MIRROR_ADDRESS,
   type ObservedTransfer,
   type Classification,
   type PendingFinality,
@@ -65,7 +65,14 @@ export class ChainWatcher {
     const token = log.address.toLowerCase();
     const from = unpadAddress(log.topics[1]);
     const to = unpadAddress(log.topics[2]);
-    const amount = fromHex(log.data);
+    const isMirror = token === NATIVE_MIRROR_ADDRESS.toLowerCase();
+    const rawData = fromHex(log.data);
+    // Mirror-only logs: never store raw 18-decimal value in observed_transfers.amount (bigint overflows above ~9.2 USDC).
+    // Store amount 0 with the raw value in the note, noDiscrepancy true.
+    const amount = isMirror ? 0n : rawData;
+    const note = isMirror
+      ? `native mirror transfer (0xfffe); not converted; raw_amount=${rawData.toString()}`
+      : undefined;
     const finality: 'pending' | 'final' =
       blockNumber <= finalizedBlockNumber ? 'final' : 'pending';
 
@@ -79,6 +86,7 @@ export class ChainWatcher {
       to,
       amount,
       finality,
+      note,
     };
   }
 
@@ -282,7 +290,23 @@ export class ChainWatcher {
         throw err;
       }
 
+      // Collect transaction hashes with an ERC-20 USDC transfer log
+      const usdcTxHashes = new Set<string>();
       for (const log of logs) {
+        if (log.address.toLowerCase() === this.config.usdcContractAddress.toLowerCase()) {
+          usdcTxHashes.add(log.transactionHash.toLowerCase());
+        }
+      }
+
+      for (const log of logs) {
+        const isMirror = log.address.toLowerCase() === NATIVE_MIRROR_ADDRESS.toLowerCase();
+        if (isMirror && usdcTxHashes.has(log.transactionHash.toLowerCase())) {
+          // Arc Testnet: One ERC-20 transfer emits two Transfer logs: 0x3600 (6 decimals) and 0xfffe (18 decimals).
+          // Take the amount from the 0x3600 log and ignore the mirror log for the same transaction.
+          // Never classify the mirror log as wrong_token and never double count.
+          continue;
+        }
+
         const transfer = await this.parseLog(log, finalizedBlockNumber);
         const classification = classify(transfer, context);
 
@@ -317,6 +341,8 @@ export class ChainWatcher {
           }
         }
 
+        const note = ('note' in classification ? classification.note : null) ?? transfer.note ?? null;
+
         if (this.config.dryRun) {
           this.logClassification(transfer, classification, { groupId, mode, stake });
           results.push({
@@ -326,6 +352,7 @@ export class ChainWatcher {
             mode,
             stake,
             written: false,
+            note,
           });
         } else if (this.db) {
           const writeRes = await this.db.upsertObservedTransfer({
@@ -334,6 +361,7 @@ export class ChainWatcher {
             groupId,
             mode,
             stake,
+            note,
           });
           results.push({
             transfer,
@@ -342,6 +370,7 @@ export class ChainWatcher {
             mode,
             stake,
             written: writeRes.inserted || writeRes.updated,
+            note,
           });
         }
       }

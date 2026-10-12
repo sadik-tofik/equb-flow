@@ -1,6 +1,7 @@
 // apps/worker/tests/watcher.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fixtures from './fixtures/recorded-logs.json';
+import mirrorReceiptFixture from './fixtures/receipt-erc20-transfer.json';
 import { RpcClient, padAddress, unpadAddress } from '../src/rpc.js';
 import { ChainWatcher, DEFAULT_CHUNK_SIZE, MIN_CHUNK_SIZE, isRangeError } from '../src/watcher.js';
 import type { WatcherDb, GroupMetadata } from '../src/db.js';
@@ -750,6 +751,135 @@ describe('Worker Unit & Integration Tests (docs/06-TDD.md 4.2a & 8.1; FR-06, T9,
 
       // Latest observed was 150, N was 10 -> starts from 140
       expect(initCursor).toBe(140n);
+    });
+  });
+
+  describe('Arc Native Mirror Log (docs/06-TDD.md 8.1; receipt-erc20-transfer.json)', () => {
+    it('takes amount from 0x3600 log, ignores mirror log for same tx, never wrong_token, never double counts', async () => {
+      const logs = mirrorReceiptFixture.result.logs;
+      const destination = '0xbe45201019eb04151ec812ad9b87ab54425ceab7';
+      const sender = '0xaea5a0ce1eb0f83c7e4764b937dd285e073a9bce';
+
+      mockDb.registeredDestinations = [destination];
+      mockDb.requests = [
+        {
+          id: 'req-mirror-1',
+          groupId: 'grp-mirror-1',
+          destination,
+          boundSender: sender,
+          expectedAmount: 1000000n,
+          alreadyCreditedAmount: 0n,
+          deadlineAt: new Date(Date.now() + 86400000),
+          graceEndsAt: new Date(Date.now() + 172800000),
+          status: 'open',
+        },
+      ];
+
+      const rpc = {
+        getFinalizedBlock: vi.fn().mockResolvedValue({
+          number: '0x3eddad4',
+          hash: '0xfinalized',
+        }),
+        getBlockNumber: vi.fn().mockResolvedValue(65919699n),
+        getBlockTime: vi.fn().mockResolvedValue(new Date('2026-10-07T12:00:00Z')),
+        getTransferLogs: vi.fn().mockResolvedValue(logs),
+      } as unknown as RpcClient;
+
+      const watcher = new ChainWatcher(config, rpc, mockDb);
+      const results = await watcher.scanOnce();
+
+      // Expected: EXACTLY ONE observed transfer (no double count)
+      expect(results).toHaveLength(1);
+      // Expected: 1000000 base units from the 0x3600 log (6 decimals, not 18 decimals from 0xfffe)
+      expect(results[0].transfer.token).toBe('0x3600000000000000000000000000000000000000');
+      expect(results[0].transfer.amount).toBe(1000000n);
+      // Expected: class from normal classifier (exact match) and never wrong_token
+      expect(results[0].classification.class).toBe('exact');
+      expect(results[0].written).toBe(true);
+      expect(mockDb.insertCount).toBe(1);
+    });
+
+    it('records standalone mirror log as an unmatched observation with amount 0, raw value in note, noDiscrepancy true', async () => {
+      // Simulate a transaction where only the 0xfffe mirror log exists (e.g. native send)
+      const mirrorOnlyLog = [mirrorReceiptFixture.result.logs[0]]; // address 0xfffe...
+      const destination = '0xbe45201019eb04151ec812ad9b87ab54425ceab7';
+
+      mockDb.registeredDestinations = [destination];
+      mockDb.requests = [];
+
+      const rpc = {
+        getFinalizedBlock: vi.fn().mockResolvedValue({
+          number: '0x3eddad4',
+          hash: '0xfinalized',
+        }),
+        getBlockNumber: vi.fn().mockResolvedValue(65919699n),
+        getBlockTime: vi.fn().mockResolvedValue(new Date('2026-10-07T12:00:00Z')),
+        getTransferLogs: vi.fn().mockResolvedValue(mirrorOnlyLog),
+      } as unknown as RpcClient;
+
+      const watcher = new ChainWatcher(config, rpc, mockDb);
+      const results = await watcher.scanOnce();
+
+      expect(results).toHaveLength(1);
+      expect(results[0].transfer.token).toBe('0xfffffffffffffffffffffffffffffffffffffffe');
+      // Amount must be 0 to prevent bigint overflow; never store raw 18-decimal value in amount
+      expect(results[0].transfer.amount).toBe(0n);
+      // Never classified as wrong_token; recorded as unmatched with noDiscrepancy true
+      expect(results[0].classification.class).toBe('unmatched');
+      expect((results[0].classification as any).noDiscrepancy).toBe(true);
+      expect((results[0].classification as any).delta).toBe(0n);
+      // Raw value is preserved in the note
+      expect(results[0].note).toContain('raw_amount=1000000000000000000');
+      expect(results[0].written).toBe(true);
+      expect(mockDb.insertCount).toBe(1);
+    });
+
+    it('handles 20 USDC (2e19) mirror-only log without bigint overflow, storing amount 0 and raw value in note', async () => {
+      // 20 USDC in 18 decimals = 20 * 10^18 = 20,000,000,000,000,000,000 = 2e19 (> signed bigint max 9.22e18)
+      const raw20Usdc = 20000000000000000000n;
+      const data20Usdc = '0x' + raw20Usdc.toString(16).padStart(64, '0');
+      const destination = '0xbe45201019eb04151ec812ad9b87ab54425ceab7';
+
+      const log20Usdc: RpcLog = {
+        address: '0xfffffffffffffffffffffffffffffffffffffffe',
+        blockHash: '0xabc',
+        blockNumber: '0x3eddad5',
+        data: data20Usdc,
+        logIndex: '0x0',
+        topics: [
+          '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+          '0x000000000000000000000000aea5a0ce1eb0f83c7e4764b937dd285e073a9bce',
+          '0x000000000000000000000000be45201019eb04151ec812ad9b87ab54425ceab7',
+        ],
+        transactionHash: '0x9999999999999999999999999999999999999999999999999999999999999999',
+      };
+
+      mockDb.registeredDestinations = [destination];
+      mockDb.requests = [];
+
+      const rpc = {
+        getFinalizedBlock: vi.fn().mockResolvedValue({
+          number: '0x3eddad5',
+          hash: '0xfinalized',
+        }),
+        getBlockNumber: vi.fn().mockResolvedValue(65919700n),
+        getBlockTime: vi.fn().mockResolvedValue(new Date('2026-10-07T12:05:00Z')),
+        getTransferLogs: vi.fn().mockResolvedValue([log20Usdc]),
+      } as unknown as RpcClient;
+
+      const watcher = new ChainWatcher(config, rpc, mockDb);
+      const results = await watcher.scanOnce();
+
+      expect(results).toHaveLength(1);
+      expect(results[0].transfer.token).toBe('0xfffffffffffffffffffffffffffffffffffffffe');
+      // Must be 0n to avoid Postgres bigint overflow (> 9.22e18)
+      expect(results[0].transfer.amount).toBe(0n);
+      expect(results[0].classification.class).toBe('unmatched');
+      expect((results[0].classification as any).noDiscrepancy).toBe(true);
+      expect((results[0].classification as any).delta).toBe(0n);
+      // Raw 2e19 value stored in note
+      expect(results[0].note).toBe('native mirror transfer (0xfffe); not converted; raw_amount=20000000000000000000');
+      expect(results[0].written).toBe(true);
     });
   });
 });

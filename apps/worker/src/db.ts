@@ -31,6 +31,7 @@ export interface WatcherDb {
     groupId?: string | null;
     mode?: 'real' | 'simulated' | 'sandbox' | null;
     stake?: 'testnet' | 'mainnet' | null;
+    note?: string | null;
   }): Promise<{ id?: string; inserted: boolean; updated: boolean }>;
   close(): Promise<void>;
 }
@@ -227,8 +228,10 @@ export class PostgresWatcherDb implements WatcherDb {
     groupId?: string | null;
     mode?: 'real' | 'simulated' | 'sandbox' | null;
     stake?: 'testnet' | 'mainnet' | null;
+    note?: string | null;
   }): Promise<{ id?: string; inserted: boolean; updated: boolean }> {
     const { transfer, classification, groupId, mode, stake } = params;
+    const note = params.note ?? ('note' in classification ? classification.note : null) ?? transfer.note ?? null;
 
     let transferClass: string | null = null;
     let amountRelation: string | null = null;
@@ -259,14 +262,16 @@ export class PostgresWatcherDb implements WatcherDb {
         matched_request_id,
         group_id,
         mode,
-        stake
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        stake,
+        note
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (tx_hash, log_index) DO UPDATE SET
         finality = EXCLUDED.finality,
         class = EXCLUDED.class,
         amount_relation = EXCLUDED.amount_relation,
         late_by_seconds = EXCLUDED.late_by_seconds,
-        matched_request_id = EXCLUDED.matched_request_id
+        matched_request_id = EXCLUDED.matched_request_id,
+        note = EXCLUDED.note
       WHERE observed_transfers.finality = 'pending' AND EXCLUDED.finality = 'final'
       RETURNING id, (xmax = 0) AS inserted;
     `;
@@ -288,6 +293,7 @@ export class PostgresWatcherDb implements WatcherDb {
       groupId ?? null,
       mode ?? null,
       stake ?? null,
+      note,
     ];
 
     const res = await this.pool.query(query, values);

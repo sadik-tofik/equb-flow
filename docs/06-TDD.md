@@ -1,7 +1,7 @@
 # TDD: Technical Design Document
 
 **Project (working title):** EqubFlow
-**Version:** 0.1 (Sprint 4, draft for review)
+**Version:** 0.3 (amended through Oct 7: spike results, UI contract changes, ledger and watcher rules)
 **Parents:** 01-BRS v0.4, 02-SRS v0.3, 03-Threat Model v0.2, 04-Evidence Spec v0.2, 05-PDR v0.3
 **Audience:** you and your coding agents (Claude Code and the UI agent). Written so each section can be handed to an agent as a task.
 **Tags:** `[Known]` seen in docs or CLI output during this project. `[Verify]` must be confirmed in a spike before relying on it.
@@ -259,6 +259,16 @@ create table authorized_actions (
 create unique index one_live_payout_per_round on authorized_actions (group_id, round_id)
   where kind = 'payout_release' and status in ('authorized','sending','submitted','confirmed');
 
+create table executions (
+  id uuid primary key default gen_random_uuid(),
+  action_id uuid not null references authorized_actions(id),
+  tx_hash text not null,
+  block_number bigint,
+  finality finality_state not null default 'pending',
+  confirmed_at timestamptz,
+  raw jsonb
+);
+
 create table decision_records (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references groups(id),
@@ -317,7 +327,7 @@ create table metric_snapshots (
 
 ### 3.3 Integrity rules (triggers and grants)
 
-- `decision_records`: `before update or delete` trigger raises an exception; `revoke update, delete` from every role. Inserts only through the single `append_decision_record()` function that computes `seq` and `prev_hash` under a per-group advisory lock.
+- `decision_records`: `before update or delete` trigger raises an exception; `revoke update, delete` from every role. Inserts only through two calls in one transaction: `next_decision_slot(group)` (takes the per-group advisory lock and returns the next `seq` and `prev_hash`) and `append_decision_record(...)`, which verifies that `seq` and `prev_hash` link to the current head and stores the hash computed **by the application** over the RFC 8785 canonical content (section 6.1). The database never hashes `jsonb` text, because its text form is not canonical and would not match the verifier. If hashing is ever done in the database it must use `extensions.digest` and cover every field.
 - `mode` and `stake` columns: `before update` trigger rejects changes.
 - `members.wallet_address` cannot change while the group is `running` (T5); a new wallet means a new cycle.
 - `rule_sets` rows with `frozen_at` set are immutable.
@@ -389,6 +399,17 @@ Precedence (first match wins), with `ctx` supplying the USDC token address, regi
 
 `delta = amount - expected` for matched requests, `amount` for unmatched ones. No division, no floats, no rounding anywhere. Fixtures: one per class plus 1-base-unit boundary cases (`expected - 1n`, `expected + 1n`), maximum bigint, and zero.
 
+### 4.2a Amendments from the first code review (Oct 2)
+
+1. **Request selection is deterministic.** Given a transfer, take every request whose `boundSender` equals the sender, sorted by `deadlineAt` ascending then `id`. Match the **oldest request that still has an amount owed** (status not `cancelled`, `remaining > 0`; `expired` requests stay eligible so a late payment is classified `late`). If none is owed, match the most recent request, which classifies as `duplicate`. Shuffling the input list must never change the result (property test).
+2. **Installments use `remaining`.** `remaining = expectedAmount - alreadyCreditedAmount`. `partial`, `over`, `exact` and `delta` compare against `remaining`, not the full amount. `duplicate` applies only when `remaining == 0`.
+3. **Zero-value transfers** (`amount == 0n`) are recorded as observed but never open a discrepancy or proposal. Transfers from **unbound** senders below a configurable dust threshold are recorded with class `unmatched` and no proposal (bound members' shortfalls are never ignored).
+4. **`wrong_token`** carries `delta = 0n`; its raw amount is stored with the token address and is never displayed as USDC.
+5. **Addresses are canonical (lowercase) everywhere** from ingestion onward; the classifier and the authorizer use the same comparison helper, and registry keys are lowercased.
+6. **The authorizer derives, it does not trust.** `PayoutState` carries raw facts (the round's credited contributions, approved covers with their proposal and approval status, open discrepancies). `verifiedPot` and "all contributions settled" are computed inside `authorizePayout`. A cover counts only if its proposal is `approved` with the required approvals. The state builder is a separate pure function with its own tests.
+7. **New check `stake_consistent`:** the recipient's registry stake must equal the group's stake. The check `chain_time_after_close` is redundant when contributions must be settled; keep it only if a rule allows paying before settlement.
+8. **Provisional vs. Authoritative classification:** The watcher's classification written to `observed_transfers` upon block log ingestion is **provisional** (fast detection). The authorizer evaluates `classify` transactionally inside `executeAuthorizerTransaction` with fresh database locks; this authorizer classification is **authoritative** and alone triggers financial state changes (crediting, discrepancies, proposals, authorized actions).
+
 ### 4.3 Decision engine mapping (which decision type applies)
 
 | Trigger | Decision type |
@@ -449,6 +470,7 @@ export function authorizePayout(s: PayoutState): { ok: boolean; failed: string[]
 liquidNeededAt = nextPayoutAt - minLiquidBufferSeconds
 windowSeconds  = liquidNeededAt - now
 eligible       = float.enabled && windowSeconds > 0 && gate/treasury has idle balance
+                 && depositSimulationSucceeds       -- eth_call of the deposit right before sending (spike 6); the reported daily window was not confirmed
 maxMove        = idleBalance * maxShareBps / 10000      -- integer division, floor, tracked as a visible remainder
 ```
 
@@ -501,13 +523,44 @@ Plain USDC transfers into the gate need no hook (ERC-20 `transfer` has no callba
 ### 6.1 Format and hashing
 
 ```ts
-const canonical = (v: unknown) => jcs(v);          // RFC 8785 JSON canonicalization
-// entry content = { groupId, seq, kind, decisionType?, mode, at, payload }
-hash = sha256( utf8(prevHash) + canonical(content) )  // hex, genesis prevHash = 64 zeros
-signature = ed25519(serverKey, hash)                 // optional but recommended
+// packages/domain/src/decision-chain.ts
+// RFC 8785 JSON canonicalization (JCS) deterministically formats keys and values.
+const canonical = (v: unknown) => canonicalJson(v);
+
+// Hashed content strictly EXCLUDES the record's own hash and signature:
+interface DecisionRecordContent {
+  groupId: string;
+  seq: number;
+  kind: string;
+  decisionType: string | null;  // Normalized: null if omitted
+  mode: 'real' | 'simulated' | 'sandbox';
+  at: string;                   // ISO-8601 UTC string (from created_at.toISOString())
+  payload: Record<string, unknown>;
+}
+
+// SHA-256 hash calculation over prevHash + canonical(normalizedContent):
+function computeDecisionHash(prevHash: string, content: DecisionRecordContent): string {
+  const atStr = content.at instanceof Date ? content.at.toISOString() : new Date(String(content.at)).toISOString();
+  const normalized: DecisionRecordContent = {
+    ...content,
+    decisionType: content.decisionType ?? null,
+    at: atStr,
+  };
+  return createHash('sha256')
+    .update(prevHash, 'utf8')
+    .update(canonicalJson(normalized), 'utf8')
+    .digest('hex');
+}
 ```
 
-Verification (`cli verify <groupId>`): read entries in `seq` order, check no gaps, recompute every hash, verify signatures, and report the first failing `seq`. Anchoring: every 10 entries and at each round end the executor calls `anchor(groupId, seq, head)` on the gate, and a daily commit stores the heads in the repo.
+- **Hash exclusion:** The hashed content string strictly excludes the `hash` field itself (and `signature`), preventing circular hash dependencies.
+- **Timestamp alignment:** `append_decision_record` accepts `p_at timestamptz default null` (bounded to `abs(p_at - now()) <= 60s`). When provided, the exact append timestamp is stored in `decision_records.created_at`, ensuring the database timestamp matches the TypeScript hash input byte-for-byte on readback.
+- **Chain verification (`verifyDecisionChain`):**
+  1. Inspects entries in `seq` order; asserts `seq == i + 1` (zero gaps, zero duplicates).
+  2. Asserts `prevHash == (i === 0 ? '0'*64 : records[i - 1].hash)` (unbroken chain).
+  3. Reconstructs `content` from stored row (`created_at.toISOString()`), excluding `hash` and `signature`.
+  4. Recomputes `computeDecisionHash(rec.prevHash, content)` and asserts `rec.hash === computed`.
+- **Anchoring:** Every 10 entries and at each round end the executor calls `anchor(groupId, seq, head)` on the gate, and a daily commit stores the heads in the repo.
 
 ### 6.2 Entry kinds
 
@@ -558,7 +611,7 @@ interface AgentOutput {
 3. Every `evidenceId` exists in the input.
 4. Rule check against the frozen rules (penalty within `penaltyBps`, cover within reserve share, refund only to the originating address).
 5. Output text length and character checks; no instruction-like text copied back into params.
-6. One retry on schema failure, then `model_unavailable` and human routing.
+6. One retry on schema failure or timeout (20-second limit per call), then a `model_unavailable` record and a conservative **engine-default proposal** (`proposed_by = 'engine'`, for example `request_topup` for a partial payment) routed to a human for approval. Fund safety never depends on the model; only the quality of judgment does.
 
 ### 7.4 Prompt skeleton (system message)
 
@@ -566,15 +619,16 @@ interface AgentOutput {
 
 ### 7.5 Adapter and replay
 
-`ModelAdapter.complete(input) -> output` with providers `nvidia` (OpenAI-compatible chat endpoint), `gemini`, and `replay`. Replay looks up `sha256(canonical(input))` in recorded fixtures; a miss in replay mode is an explicit error. Per-day call budget and rate limiter in front of live providers. Provider and model come from configuration; one model is pinned per environment.
+`ModelAdapter.complete(input) -> output` with providers `nvidia` (OpenAI-compatible chat endpoint), `gemini`, and `replay`. Replay looks up `sha256(canonical(input))` in recorded fixtures; a miss in replay mode is an explicit error. Per-day call budget and rate limiter in front of live providers. The adapter records `finish_reason` for every call and treats `length` as invalid output: reasoning-style models spend `max_tokens` on hidden thinking, so the budget must leave room for the visible JSON (or thinking must be limited), and a truncated reply is never parsed. Provider quotas are configuration (one Gemini model's free tier allows only 20 requests per day per project), so development and test runs use replay and live calls are reserved for decisions that need judgment (an exact payment needs no model call). Models are pinned by explicit name, never by a `-latest` alias. Provider and model come from configuration; one model is pinned per environment.
 
 ## 8. Chain watcher and executor
 
 ### 8.1 Watcher
 
-- Poll Arc Testnet RPC `[Known: https://rpc.testnet.arc.network, chain ID 5042002]` for ERC-20 `Transfer` logs of the USDC contract `0x3600000000000000000000000000000000000000` where `to` is a registered destination. Store a cursor (last processed block); on restart, rescan from `cursor - N` and rely on `unique (tx_hash, log_index)` for idempotency.
+- Poll Arc Testnet RPC `[Known: https://rpc.testnet.arc.network, chain ID 5042002]` for ERC-20 `Transfer` logs from **any token contract** where `to` is a registered destination (filter on the indexed `to` topic, not on the contract address), so a lookalike token shows up and is classified `wrong_token`. The USDC contract is `0x3600000000000000000000000000000000000000`. `[Verify]` the RPC allows address-less log queries and its block-range limit. Store a cursor (last processed block); on restart, rescan from `cursor - N` and rely on `unique (tx_hash, log_index)` for idempotency.
+- **Arc Native Mirror Log:** On Arc Testnet, an ERC-20 USDC transfer emits two Transfer logs: one from `0x3600000000000000000000000000000000000000` (6 decimals) and one from the native mirror address `0xfffffffffffffffffffffffffffffffffffffffe` (18 decimals). The watcher takes the amount from the `0x3600` log and ignores the mirror log for the same transaction. Never classify the mirror log as `wrong_token` and never double count. When only a mirror log exists for a transaction, record it as an unmatched observation with a note (`native mirror transfer (0xfffe); not converted`); do not convert yet.
 - Mark `final` per the confirmation rule from spike 5. Only `final` rows are classified.
-- On classification: write the transfer, run `classify`, call the decision engine, append records.
+- On classification: write the transfer, run `classify`, call the decision engine, append records. **Classification Authority:** The watcher's classification on `observed_transfers` is **provisional** (fast detection and ingestion). The authorizer's classification inside the transactional engine (`executeAuthorizerTransaction`) is **authoritative** and strictly governs financial state changes (crediting contributions, opening discrepancies, creating proposals, and inserting authorized actions).
 
 ### 8.2 Executor
 
@@ -599,12 +653,15 @@ interface GroupSummary {
   contribution: Money; contributionDisplay: string;
   accelerated: boolean;                            // true when cadence is compressed; UI must say so
   rulesVersion: number; paused: boolean;
+  cadenceText: string;                             // for example "24 hours (accelerated)"; shown wherever the schedule appears
+  destinationAddress: string;                      // the group's receiving address; shown only on Audit and Proof screens, shortened elsewhere
 }
 interface RoundView {
   roundNo: number; recipientAlias: string; status: string; statusText: string;
   deadlineAt: string; graceEndsAt: string;
   contributions: { alias: string; state: 'waiting'|'credited'|'late'|'partial'|'problem'; display: string; txUrl?: string }[];
   potDisplay: string; payoutTxUrl?: string;
+  recipientWalletShort: string;                    // first 6 and last 4 characters, for independent checking
 }
 interface MyObligation {
   roundNo: number; amount: Money; display: string; deadlineAt: string;
@@ -632,11 +689,12 @@ interface DecisionRecordView {
 | `POST /api/groups` | organizer | Create a group with the FR-01 parameters |
 | `GET /api/groups/:id` | member | `GroupSummary`, `myObligation`, next-action text |
 | `POST /api/groups/:id/invites` | organizer | Create invite links |
+| `GET /api/invites/:token` | anyone with the link | Group terms before joining: `{ groupName, contributionDisplay, memberCount, cadenceText, rulesVersion, rulesHash, status: 'active'\|'used'\|'expired' }` |
 | `POST /api/invites/:token/accept` | any signed-in user | Join, acknowledging `rulesVersion` and `rulesHash`; creates the app-managed wallet |
 | `GET /api/groups/:id/rules` | member | Rule set versions, plain-language rendering |
 | `POST /api/groups/:id/start-cycle` | organizer | Freeze rules, fix order (fixed or verifiable random), open round 1 |
 | `GET /api/groups/:id/rounds/:n` | member | `RoundView` |
-| `POST /api/payment-requests/:id/approve` | the member concerned | Member's fresh approval to send their contribution (requires sign-in within the last 5 minutes) |
+| `POST /api/payment-requests/:id/approve` | the member concerned | Member's fresh approval to send their contribution (requires sign-in within the last 5 minutes). Returns `{ status: 'submitted'\|'confirmed', txHash?: string, txUrl?: string }`; the hash may be absent until the executor submits, so the UI polls the round |
 | `GET /api/groups/:id/discrepancies` | member | `DiscrepancyView[]` |
 | `GET /api/groups/:id/proposals?status=` | member | Approval inbox `ProposalView[]` |
 | `POST /api/proposals/:id/decision` | eligible approver | Body `{decision:'approve'|'reject'|'send_back', note?}` |
@@ -686,15 +744,15 @@ Error codes: `not_signed_in`, `not_a_member`, `not_allowed`, `rules_frozen`, `al
 
 | # | Spike | Pass condition | Result |
 |---|---|---|---|
-| 1 | Developer-controlled wallet sends a USDC transfer from code | Tx hash visible on explorer | |
-| 2 | A wallet type calls a contract (`circle wallet execute` for agent wallets; SDK for developer-controlled) | State change observed | |
+| 1 | Developer-controlled wallet sends a USDC transfer from code | Tx hash visible on explorer | **Oct 7, PASSED.** Developer-controlled EOA wallet on ARC-TESTNET sent 1 USDC to a second wallet through Circle's API: state `COMPLETE`, tx `0xecb228ab6e85f96a47dadecb1bce861793d1b0a95941cf5bda2f08620d448edb`, block 65919699, network fee 0.0015 USDC (about a tenth of the fee for a smart-account agent wallet). The response also carries a `transactionScreeningEvaluation` field, so Circle screens the transfer |
+| 2 | A wallet type calls a contract (`circle wallet execute` for agent wallets; SDK for developer-controlled) | State change observed | **Oct 2, agent wallet: PASSED.** `approve(address,uint256)` on the USDC ERC-20 interface, state `COMPLETE`, tx `0x5092afc386c717e67417dd7a671a1a0b855f9e1af3d72fee2538c529b1f79009`, block 65076374, measured fee 0.0159 USDC (estimate 0.0315). The estimate output includes verification and pre-verification gas, so agent wallets behave like smart-contract accounts; use measured fees in cost claims (observed 0.7 to 4.9 cents per contract call; they vary with gas price). Developer-controlled wallets not yet tested |
 | 3 | User-controlled wallets on Arc Testnet | Yes/no and setup time | |
-| 4 | ERC-20 USDC events and balance semantics | Transfer logs readable by the watcher | |
-| 5 | Finality rule | Chosen confirmation rule and measured delay | |
-| 6 | USYC approve, deposit, redeem for 1 USDC (`1000000`) | Round trip completes | |
-| 7 | RPC rate limits | Safe polling interval | |
+| 4 | ERC-20 USDC events and balance semantics | Transfer logs readable by the watcher | **Oct 3, partial.** `eth_getLogs` with the Transfer topic and an indexed `to` filter and no contract address is accepted by the RPC. Not yet shown: a real transfer producing a log, and whether a native-value USDC send also emits one (the watcher may miss native sends; contributions from our own wallets use the ERC-20 `transfer`) |
+| 5 | Finality rule | Chosen confirmation rule and measured delay | **Oct 3, passed (to confirm over several samples).** Block time about 0.5 s; the `finalized` tag is supported and equal to `latest`. Rule: a transfer is final when its block number is at or below the `finalized` block; fall back to 3 confirmations if the tag is ever unavailable |
+| 6 | USYC approve, deposit, redeem for 1 USDC (`1000000`) | Round trip completes | **Oct 2, partial.** Approve of 1 USDC to the Teller succeeded. Deposit estimate reverted at about 06:54 UTC. Another team's pull request reports that testnet USYC can only be subscribed between the oracle's daily update (about 12:31 UTC) and 14:00 New York time, and that outside it the mint price is 0 and a deposit reverts (unverified by us). Retry inside that window; the allowance is already set. **Oct 2, 13:03 UTC retry (inside the reported window): approve succeeded again (fee 0.007 USDC), deposit estimate still reverted, so the window alone does not explain it.** Another team (Vestiarion, PR #123) reports a working testnet deposit and says Entitlements `canCall` was true for their wallet. Diagnostics later the same day: `eth_call` of the deposit **succeeded** (877,691 USYC shares for 1 USDC, so about 1.139 USDC per USYC), `canCall` returned true, allowance was 1,000,000, and the CLI estimate succeeded. The cause of the earlier revert is not proven (daily oracle update later than the reported time, or timing); gate every deposit with an `eth_call` first. **Oct 3, PASSED.** Deposit of 1 USDC (`1000000`) at 12:14 UTC produced 877,691 USYC shares (tx `0xad6c9a40972f7f0c8a86712d12329f7ee4cd2b99c01a5ba4fae0c2e45f0dc0e2`, block 65283850, fee 0.0164 USDC); approve of the shares (tx `0x04664d6159ce4146b84c23fb780071a803d401fa4bd545954462b4e8a3d483b9`, fee 0.0087); redeem of all shares (tx `0xb34bb40f97b72deabd03f7b09b4b305b5d20aa2d5f8bb13453a2eb108e150654`, block 65284283, fee 0.0174). The deposit succeeded at 12:14 UTC, **before** the reported 12:31 UTC window start, and on a Saturday, so the window theory is not supported. Every failed estimate came right after an approve in the same session, while the successful deposit relied on an allowance set the day before: the likely cause is stale state visible to the estimator for a short time after a dependent transaction. Rule: after a transaction that a later call depends on, wait for confirmation and re-read the state (for example the allowance) before sending the dependent call |
+| 7 | RPC rate limits | Safe polling interval | **Oct 3, passed.** 50 concurrent requests completed in 1.7 s, all 200 OK. Poll every 2 to 3 seconds with at most two requests per poll; back off on any 429 |
 | 8 | Supabase custom roles through the pooler | Each role connects with its grants | |
-| 9 | NVIDIA model returns schema-valid JSON | At least 9 of 10 test prompts valid | |
+| 9 | A hosted model returns schema-valid JSON reliably | At least 9 of 10 test prompts valid, median latency under 10 s | **Oct 1, NVIDIA free tier: FAILED.** `google/gemma-4-31b-it` 4 of 10 valid, 6 timeouts at 40 s, completed calls took 7 to 30 s; `deepseek-ai/deepseek-v4.1-flash` 0 of 10 (all timeouts). Timeouts, not rate-limit errors, so the free queue is the cause. When it did answer, it ignored all 3 injection attempts. Smaller NVIDIA models (`gemma-3-4b-it`, `gemma-3-12b-it`) return 404 for chat. Gemini free tier works from the builder's location: `gemini-3-flash-preview` answered in 2.7 to 4.5 s but every reply was truncated (thinking tokens consumed `max_tokens`) and its free quota is 20 requests per day, which later calls exhausted (HTTP 429). `gemini-3.1-flash-lite` **PASSED** the 10-case run on Oct 1: 10 of 10 valid, `finish_reason` always `stop`, no code fences, median 1.4 s, 4 of 4 injection cases ignored, no 429s. **Pinned: `gemini-3.1-flash-lite` primary, NVIDIA `gemma-4-31b-it` secondary, engine fallback last.** This model's daily quota is still unmeasured; confirm in AI Studio that it is not labeled preview |
 
 ## 13. SRS deltas (applied in SRS v0.3)
 

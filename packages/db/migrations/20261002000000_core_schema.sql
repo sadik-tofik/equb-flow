@@ -196,9 +196,12 @@ create table if not exists observed_transfers (
   group_id uuid references groups(id),
   mode participant_mode,
   stake stake_type,
+  note text,
   observed_at timestamptz not null default now(),
   unique (tx_hash, log_index)
 );
+
+alter table public.observed_transfers add column if not exists note text;
 
 create table if not exists contributions (
   id uuid primary key default gen_random_uuid(),
@@ -634,6 +637,8 @@ end;
 $$ language plpgsql security definer set search_path = public, pg_temp;
 
 -- Call 2: Verifies linkage and group mode, then inserts the canonical record
+drop function if exists public.append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text);
+
 create or replace function append_decision_record(
   p_group_id uuid,
   p_seq bigint,
@@ -643,7 +648,8 @@ create or replace function append_decision_record(
   p_decision_type text,
   p_mode participant_mode,
   p_payload jsonb,
-  p_signature text default null
+  p_signature text default null,
+  p_at timestamptz default null
 ) returns decision_records as $$
 declare
   v_head_seq bigint;
@@ -651,6 +657,11 @@ declare
   v_group_mode participant_mode;
   v_record decision_records;
 begin
+  -- Validate p_at timestamp if provided: rejected if more than 60 seconds from now()
+  if p_at is not null and abs(extract(epoch from (p_at - now()))) > 60 then
+    raise exception 'p_at is more than 60 seconds from database time';
+  end if;
+
   -- Per-group advisory lock to serialize record creation and hash chaining (re-entrant within same transaction)
   perform pg_advisory_xact_lock(hashtext('group_decision_' || p_group_id::text));
 
@@ -684,9 +695,9 @@ begin
   end if;
 
   insert into public.decision_records (
-    group_id, seq, kind, decision_type, mode, payload, prev_hash, hash, signature
+    group_id, seq, kind, decision_type, mode, payload, prev_hash, hash, signature, created_at
   ) values (
-    p_group_id, p_seq, p_kind, p_decision_type, p_mode, p_payload, p_prev_hash, p_hash, p_signature
+    p_group_id, p_seq, p_kind, p_decision_type, p_mode, p_payload, p_prev_hash, p_hash, p_signature, coalesce(p_at, now())
   ) returning * into v_record;
 
   return v_record;
@@ -708,15 +719,15 @@ revoke insert, update, delete, truncate on public.authorized_actions from public
 revoke execute on function next_decision_slot(uuid) from public, anon, authenticated;
 grant execute on function next_decision_slot(uuid) to authorizer, postgres;
 
-revoke execute on function append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text) from public, anon, authenticated;
-grant execute on function append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text) to authorizer, postgres;
+revoke execute on function append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text, timestamptz) from public, anon, authenticated;
+grant execute on function append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text, timestamptz) to authorizer, postgres;
 
 -- If service_role exists, also revoke execution
 do $$
 begin
   if exists (select from pg_roles where rolname = 'service_role') then
     execute 'revoke execute on function next_decision_slot(uuid) from service_role';
-    execute 'revoke execute on function append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text) from service_role';
+    execute 'revoke execute on function append_decision_record(uuid, bigint, text, text, text, text, participant_mode, jsonb, text, timestamptz) from service_role';
   end if;
 end
 $$;
@@ -766,6 +777,9 @@ create policy authorizer_registry on wallet_registry for all to authorizer using
 
 drop policy if exists authorizer_requests on payment_requests;
 create policy authorizer_requests on payment_requests for all to authorizer using (true) with check (true);
+
+drop policy if exists authorizer_transfers on observed_transfers;
+create policy authorizer_transfers on observed_transfers for all to authorizer using (true) with check (true);
 
 drop policy if exists authorizer_contributions on contributions;
 create policy authorizer_contributions on contributions for all to authorizer using (true) with check (true);
@@ -927,8 +941,9 @@ create policy member_reads_notifications on notifications for select to authenti
 -- ============================================================================
 
 -- authorizer:
-grant select on groups, rounds, members, wallet_registry, rule_sets, payment_requests, contributions, discrepancies, proposals, approvals to authorizer;
-grant insert on contributions, discrepancies, authorized_actions to authorizer;
+grant select on groups, rounds, members, wallet_registry, rule_sets, payment_requests, observed_transfers, contributions, discrepancies, proposals, approvals to authorizer;
+grant insert on contributions, discrepancies, proposals, authorized_actions to authorizer;
+grant update (class, amount_relation, late_by_seconds, matched_request_id, note) on observed_transfers to authorizer;
 grant update on discrepancies, rounds, groups, payment_requests, proposals to authorizer;
 grant select on decision_records to authorizer;
 
@@ -941,7 +956,7 @@ revoke all on decision_records from executor;
 
 -- watcher:
 grant select on payment_requests, groups, members, contributions to watcher;
-grant select, insert, update (class, amount_relation, late_by_seconds, matched_request_id, finality) on observed_transfers to watcher;
+grant select, insert, update (class, amount_relation, late_by_seconds, matched_request_id, finality, note) on observed_transfers to watcher;
 revoke all on authorized_actions from watcher;
 revoke all on decision_records from watcher;
 
@@ -970,7 +985,8 @@ create or replace view evidence_rounds_view as
 
 create or replace view evidence_volume_view as
   select id, group_id, round_id, amount, credited_at
-  from public.contributions;
+  from public.contributions
+  where amount > 0;
 
 create or replace view evidence_decisions_view as
   select

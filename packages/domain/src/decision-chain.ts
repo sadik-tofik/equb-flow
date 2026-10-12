@@ -48,7 +48,20 @@ export function canonicalJson(v: unknown): string {
  * Computes deterministic SHA-256 hash of (prevHash + canonical(content)).
  */
 export function computeDecisionHash(prevHash: string, content: DecisionRecordContent): string {
-  const canonical = canonicalJson(content);
+  const atVal = content.at as unknown;
+  const atStr =
+    atVal instanceof Date
+      ? atVal.toISOString()
+      : typeof atVal === 'string'
+        ? atVal
+        : new Date(String(atVal)).toISOString();
+
+  const normalized: DecisionRecordContent = {
+    ...content,
+    decisionType: content.decisionType ?? null,
+    at: atStr,
+  };
+  const canonical = canonicalJson(normalized);
   return createHash('sha256')
     .update(prevHash, 'utf8')
     .update(canonical, 'utf8')
@@ -85,13 +98,19 @@ export function verifyDecisionChain(records: DecisionRecord[]): {
       };
     }
 
+    const recAtVal = rec.at as unknown;
+    const atStr =
+      recAtVal instanceof Date
+        ? recAtVal.toISOString()
+        : new Date(String(recAtVal)).toISOString();
+
     const content: DecisionRecordContent = {
       groupId: rec.groupId,
       seq: rec.seq,
       kind: rec.kind,
       decisionType: rec.decisionType ?? null,
       mode: rec.mode,
-      at: rec.at,
+      at: atStr,
       payload: rec.payload,
     };
 

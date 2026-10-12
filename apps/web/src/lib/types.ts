@@ -138,3 +138,14 @@ export interface CreateGroupInput {
   graceHours: number;
   orderMethod: 'fixed' | 'verifiable_random';
 }
+
+export interface VerifyChainResult {
+  groupId: string;
+  groupName: string;
+  ok: boolean;
+  recordCount: number;
+  headHash: string;
+  failedSeq?: number;
+  error?: string;
+  statusText: string;
+}

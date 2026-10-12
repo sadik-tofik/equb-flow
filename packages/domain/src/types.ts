@@ -15,6 +15,7 @@ export interface ObservedTransfer {
   to: string;
   amount: Money;
   finality: 'pending' | 'final';
+  note?: string;
 }
 
 export interface PaymentRequest {
@@ -46,6 +47,7 @@ export interface Classification {
   matchedRequestId?: string;
   delta: bigint; // observed - remaining, signed
   noDiscrepancy: boolean; // true for zero-value and unbound dust; false for actionable discrepancies
+  note?: string;
 }
 
 export type PendingFinality = { state: 'pending_finality' };

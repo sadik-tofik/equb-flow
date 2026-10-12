@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "test": "pnpm -r test",
+    "test:sandbox": "tsx scripts/test-authorizer-sandbox.ts",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build"
   },
   "devDependencies": {
+    "tsx": "^4.23.15",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
   }

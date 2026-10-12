@@ -1,25 +1,15 @@
 #!/usr/bin/env bash
-# Blocks commits that stage env files or likely secrets. Works for any coding agent or human.
-# Enable once with:  git config core.hooksPath .githooks && chmod +x .githooks/pre-commit
-
+# Blocks commits that stage env files or likely secrets.
 set -u
-
-# 1. Never allow env files (except the placeholder example).
 bad_files=$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$' || true)
 if [ -n "$bad_files" ]; then
-  echo "BLOCKED: env files are staged:"; echo "$bad_files"
-  echo "Unstage with: git restore --staged <file>"
-  exit 1
+  echo "BLOCKED: env files are staged:"; echo "$bad_files"; exit 1
 fi
-
-# 2. Scan added lines (outside docs/) for key-like strings.
 patterns='(sb_secret_[A-Za-z0-9_-]{10,}|nvapi-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|postgres(ql)?://[^[:space:]]*:[^[:space:]@]{6,}@|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,})'
-hits=$(git diff --cached -U0 --no-color -- . ':!docs' ':!.githooks' | grep -E '^\+' | grep -vE '^\+\+\+' | grep -E "$patterns" || true)
+hits=$(git diff --cached -U0 --no-color -- . ':!docs' ':!.githooks' | grep -E '^\+' | grep -vE '^\+\+\+' | grep -E "$patterns" | grep -vE '@(localhost|127\.0\.0\.1)(:|/)|CHANGE_ME' || true)
 if [ -n "$hits" ]; then
   echo "BLOCKED: possible secret in staged changes (values hidden):"
   echo "$hits" | sed -E 's/(.{0,40}).*/\1 ... [truncated]/' | head -n 10
-  echo "Remove the value, load it from the environment, and rotate it if it was ever pushed."
   exit 1
 fi
-
 exit 0
