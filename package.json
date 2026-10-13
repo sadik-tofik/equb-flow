@@ -11,7 +11,7 @@
     "start:executor": "tsx apps/executor/src/runner.ts",
     "build:web": "pnpm --filter @equbflow/domain build && pnpm --filter @equbflow/db build && pnpm --filter @equbflow/web build",
     "typecheck": "pnpm -r typecheck",
-    "build": "pnpm -r build"
+    "build": "pnpm build:web"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
