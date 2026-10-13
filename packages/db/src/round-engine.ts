@@ -946,7 +946,6 @@ export async function applyApprovedProposal(
 
       const transferAmount = BigInt(transfer.amount);
       const expectedAmount = BigInt(req.expected_amount);
-      const alreadyCredited = BigInt(req.already_credited_amount || 0);
 
       // Insert contribution (one credit per transfer invariant)
       const contribRes = await client.query(
@@ -966,15 +965,19 @@ export async function applyApprovedProposal(
       );
       contributionId = contribRes.rows[0].id;
 
-      // Update payment request status and already_credited_amount
-      const newCredited = alreadyCredited + transferAmount;
-      const newReqStatus = newCredited >= expectedAmount ? 'credited' : 'partial';
+      // Update payment request status based on total credited contributions
+      const creditedSumRes = await client.query(
+        `SELECT coalesce(sum(amount), 0) as credited FROM public.contributions WHERE request_id = $1`,
+        [requestId]
+      );
+      const totalCredited = BigInt(creditedSumRes.rows[0].credited || '0');
+      const newReqStatus = totalCredited >= expectedAmount ? 'credited' : 'partial';
 
       await client.query(
         `UPDATE public.payment_requests
-         SET already_credited_amount = $1, status = $2
-         WHERE id = $3`,
-        [newCredited.toString(), newReqStatus, requestId]
+         SET status = $1
+         WHERE id = $2`,
+        [newReqStatus, requestId]
       );
 
       // Resolve open discrepancies for this transfer
@@ -1053,7 +1056,7 @@ export async function applyApprovedProposal(
           subject.roundId || null,
           transfer.from_address.toLowerCase(),
           refundAmount.toString(),
-          JSON.stringify({ proposalId: opts.proposalId, transferId }),
+          JSON.stringify({ proposalId: opts.proposalId, proposal_id: opts.proposalId, transferId, transfer_id: transferId }),
           idempotencyKey,
           dRecAct.id,
         ]

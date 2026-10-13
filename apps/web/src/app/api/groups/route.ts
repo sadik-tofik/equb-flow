@@ -8,8 +8,14 @@ import { getAuthorizerPool } from '@/lib/db';
 import { formatUsdcBaseUnits } from '@/lib/money';
 import { canonicalJson, type Mode, type StakeType } from '@equbflow/domain';
 import { appendDecisionRecordWithChain } from '@equbflow/db';
+import { verifyRequestOrigin } from '@/lib/csrf';
 
 export async function POST(req: NextRequest) {
+  const originCheck = verifyRequestOrigin(req);
+  if (!originCheck.valid) {
+    return apiError('not_allowed', originCheck.reason || 'Cross-origin request rejected', 403);
+  }
+
   const sessionUser = await getSessionUser(req);
   if (!sessionUser) {
     return apiError('not_signed_in', 'Authentication required to create a group', 401);

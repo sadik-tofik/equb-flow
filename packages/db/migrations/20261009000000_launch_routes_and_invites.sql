@@ -20,13 +20,15 @@ create table if not exists public.group_invites (
   status text not null default 'active' check (status in ('active','used','expired'))
 );
 
--- 3. RLS for group_invites
+-- 3. RLS for group_invites (Revoke select from anon and authenticated; only server/authorizer route looks up)
 alter table public.group_invites enable row level security;
 drop policy if exists read_invites on public.group_invites;
-create policy read_invites on public.group_invites for select to anon, authenticated using (true);
 
 drop policy if exists authorizer_invites on public.group_invites;
 create policy authorizer_invites on public.group_invites for all to authorizer using (true) with check (true);
+
+-- Revoke all permissions on group_invites from public, anon, authenticated
+revoke all on public.group_invites from public, anon, authenticated;
 
 -- 4. Update member_reads_group so organizers can see their created groups before member rows are established
 drop policy if exists member_reads_group on public.groups;
@@ -50,11 +52,20 @@ grant update on public.members to authorizer;
 grant select, insert, update on public.group_invites to authorizer;
 grant insert, update on public.approvals to authorizer;
 grant select on public.authorized_actions to authorizer;
+grant authenticated to authorizer;
 
 -- executor (wallet provisioning loop):
 grant update (destination_address) on public.groups to executor;
 grant update (wallet_address) on public.members to executor;
 grant insert on public.wallet_registry to executor;
 
--- authenticated & anon:
-grant select on public.group_invites to authenticated, anon;
+-- 7. Authenticated reads on observed_transfers and authorized_actions (group-scoped)
+drop policy if exists member_reads_transfers on public.observed_transfers;
+create policy member_reads_transfers on public.observed_transfers for select to authenticated
+  using (is_member(group_id));
+
+drop policy if exists member_reads_actions on public.authorized_actions;
+create policy member_reads_actions on public.authorized_actions for select to authenticated
+  using (is_member(group_id));
+
+grant select on public.observed_transfers, public.authorized_actions to authenticated;

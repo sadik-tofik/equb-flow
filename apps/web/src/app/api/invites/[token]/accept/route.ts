@@ -5,6 +5,7 @@ import { AcceptInviteSchema } from '@/lib/validations';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser } from '@/lib/auth';
 import { getAuthorizerPool } from '@/lib/db';
+import { verifyRequestOrigin } from '@/lib/csrf';
 import { appendDecisionRecordWithChain } from '@equbflow/db';
 import type { Mode } from '@equbflow/domain';
 
@@ -12,6 +13,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const originCheck = verifyRequestOrigin(req);
+  if (!originCheck.valid) {
+    return apiError('not_allowed', originCheck.reason || 'Cross-origin request rejected', 403);
+  }
+
   const sessionUser = await getSessionUser(req);
   if (!sessionUser) {
     return apiError('not_signed_in', 'Authentication required to accept an invitation', 401);
@@ -32,17 +38,16 @@ export async function POST(
     await client.query('BEGIN');
     await client.query('SET LOCAL ROLE authorizer');
 
-    // 1. Fetch and validate invite
+    // 1. Fetch and validate invite and group
     const inviteRes = await client.query(
-      `SELECT i.*, g.id as group_id, g.mode, g.stake, g.status as group_status,
+      `SELECT i.*, g.id as group_id, g.mode, g.stake, g.status as group_status, g.cycle_no,
               g.member_count, r.version as latest_version, r.rules_hash as latest_rules_hash
        FROM public.group_invites i
        JOIN public.groups g ON g.id = i.group_id
        LEFT JOIN public.rule_sets r ON r.group_id = g.id AND r.version = (
          SELECT max(version) FROM public.rule_sets WHERE group_id = g.id
        )
-       WHERE i.token = $1
-       FOR UPDATE OF i`,
+       WHERE i.token = $1`,
       [token]
     );
 
@@ -52,9 +57,17 @@ export async function POST(
     }
 
     const row = inviteRes.rows[0];
-    if (row.status !== 'active' || new Date(row.expires_at).getTime() < Date.now()) {
+
+    // Expiry check
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
       await client.query('ROLLBACK');
-      return apiError('validation_failed', 'This invitation link is expired or has already been used', 400);
+      return apiError('validation_failed', 'This invitation link is expired', 400);
+    }
+
+    // Refuse after start-cycle
+    if (row.group_status !== 'draft' && row.group_status !== 'recruiting') {
+      await client.query('ROLLBACK');
+      return apiError('not_allowed', 'Savings cycle has already started; new members cannot join', 400);
     }
 
     // 2. Validate rules acknowledgement matches current rules
@@ -67,7 +80,7 @@ export async function POST(
       return apiError('validation_failed', 'Rules hash does not match current rules terms', 400);
     }
 
-    // 3. Check group member capacity
+    // 3. Check group member capacity (refuse when group is full)
     const countRes = await client.query(
       `SELECT count(*) as count FROM public.members WHERE group_id = $1`,
       [row.group_id]
@@ -78,7 +91,7 @@ export async function POST(
       return apiError('not_allowed', 'Group is already full', 400);
     }
 
-    // 4. Check if user already joined this group
+    // 4. Refuse second join by the same user
     const existingRes = await client.query(
       `SELECT id FROM public.members WHERE group_id = $1 AND user_id = $2`,
       [row.group_id, sessionUser.userId]
@@ -88,7 +101,21 @@ export async function POST(
       return apiError('not_allowed', 'You are already a member of this group', 400);
     }
 
-    // 5. Create member with wallet pending provisioning
+    // 5. Claim invite atomically (single use, active status, not expired)
+    const claimRes = await client.query(
+      `UPDATE public.group_invites
+       SET status = 'used', claimed_by = $1, claimed_at = now()
+       WHERE token = $2 AND status = 'active' AND expires_at > now()
+       RETURNING *`,
+      [sessionUser.userId, token]
+    );
+
+    if (claimRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return apiError('validation_failed', 'This invitation link is expired or has already been used', 400);
+    }
+
+    // 6. Create member with wallet pending provisioning
     const memberId = randomUUID();
     await client.query(
       `INSERT INTO public.members (
@@ -107,14 +134,6 @@ export async function POST(
         row.stake,
         rulesVersion,
       ]
-    );
-
-    // 6. Update invite record
-    await client.query(
-      `UPDATE public.group_invites
-       SET status = 'used', claimed_by = $1, claimed_at = now()
-       WHERE token = $2`,
-      [sessionUser.userId, token]
     );
 
     // 7. Append member_joined decision record

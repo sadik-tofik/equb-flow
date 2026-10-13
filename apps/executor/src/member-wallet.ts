@@ -64,6 +64,13 @@ export async function createMemberWallet(
     }
     createdWalletId = walletData.id;
     createdAddress = walletData.address;
+  } else if (circleClientOrAdapter?.createWallet) {
+    const res = await circleClientOrAdapter.createWallet({
+      walletSetId: input.walletSetId,
+      description: `Member-${memberId.slice(0, 8)}`,
+    });
+    createdWalletId = res.id;
+    createdAddress = res.address;
   } else if (circleClientOrAdapter?.createMemberWallet) {
     // Custom adapter method if defined
     const res = await circleClientOrAdapter.createMemberWallet({ memberId, groupId });
@@ -79,13 +86,14 @@ export async function createMemberWallet(
   // 3. Upsert into wallet_registry
   await dbClient.query(
     `INSERT INTO public.wallet_registry (
-       address, mode, stake, custody, owner_role
+       address, mode, stake, custody, owner_role, funding_source
      ) VALUES (
-       $1, $2, $3, $4, $5
+       $1, $2, $3, $4, $5, $6
      ) ON CONFLICT (address) DO UPDATE SET
        mode = EXCLUDED.mode,
-       stake = EXCLUDED.stake`,
-    [createdAddress, member.mode, member.stake, 'app_managed', 'member']
+       stake = EXCLUDED.stake,
+       funding_source = EXCLUDED.funding_source`,
+    [createdAddress, member.mode, member.stake, 'app_managed', 'member', createdWalletId]
   );
 
   // 4. Update member record
@@ -158,6 +166,13 @@ export async function provisionGroupPotWallet(
     }
     createdWalletId = walletData.id;
     createdAddress = walletData.address;
+  } else if (circleClientOrAdapter?.createWallet) {
+    const res = await circleClientOrAdapter.createWallet({
+      walletSetId: input.walletSetId,
+      description: `Pot-${groupId.slice(0, 8)}`,
+    });
+    createdWalletId = res.id;
+    createdAddress = res.address;
   } else if (circleClientOrAdapter?.createPotWallet) {
     const res = await circleClientOrAdapter.createPotWallet({ groupId });
     createdWalletId = res.walletId;
@@ -170,13 +185,14 @@ export async function provisionGroupPotWallet(
 
   await dbClient.query(
     `INSERT INTO public.wallet_registry (
-       address, mode, stake, custody, owner_role
+       address, mode, stake, custody, owner_role, funding_source
      ) VALUES (
-       $1, $2, $3, $4, $5
+       $1, $2, $3, $4, $5, $6
      ) ON CONFLICT (address) DO UPDATE SET
        mode = EXCLUDED.mode,
-       stake = EXCLUDED.stake`,
-    [createdAddress, group.mode, group.stake, 'app_managed', 'system']
+       stake = EXCLUDED.stake,
+       funding_source = EXCLUDED.funding_source`,
+    [createdAddress, group.mode, group.stake, 'app_managed', 'system', createdWalletId]
   );
 
   await dbClient.query(

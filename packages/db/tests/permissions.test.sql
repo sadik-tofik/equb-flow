@@ -28,8 +28,11 @@ declare
   v_wallet_b text := '0x2222222222222222222222222222222222222222';
   v_gate text := '0xeb21103e749d682c3f0e36a23852f246b1b4d016';
   v_dec_rec decision_records;
+  v_dec_rec_b decision_records;
   v_action_id uuid := '55555555-5555-5555-5555-555555555551'::uuid;
+  v_action_b uuid := '55555555-5555-5555-5555-555555555552'::uuid;
   v_transfer_id uuid := '66666666-6666-6666-6666-666666666661'::uuid;
+  v_transfer_b uuid := '66666666-6666-6666-6666-666666666662'::uuid;
 begin
   raise notice '>>> Setting up test fixtures...';
 
@@ -69,6 +72,17 @@ begin
     '{"action":"genesis"}'::jsonb
   );
 
+  v_dec_rec_b := append_decision_record(
+    v_group_b,
+    1,
+    repeat('0', 64),
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    'group_created',
+    null,
+    'real',
+    '{"action":"genesis_b"}'::jsonb
+  );
+
   -- Create an authorized action for executor tests
   insert into authorized_actions (
     id, group_id, round_id, kind, to_address, amount, idempotency_key, decision_record_id, status
@@ -76,11 +90,23 @@ begin
     v_action_id, v_group_a, v_round_a, 'payout_release', v_wallet_a, 1000000, 'payout:alpha:1:1', v_dec_rec.id, 'authorized'
   );
 
+  insert into authorized_actions (
+    id, group_id, round_id, kind, to_address, amount, idempotency_key, decision_record_id, status
+  ) values (
+    v_action_b, v_group_b, v_round_b, 'payout_release', v_wallet_b, 1000000, 'payout:beta:1:1', v_dec_rec_b.id, 'authorized'
+  );
+
   -- Create observed transfer for watcher/refund tests
   insert into observed_transfers (
     id, tx_hash, log_index, block_number, block_time, token, from_address, to_address, amount, finality, mode, stake, group_id
   ) values (
     v_transfer_id, '0xaaa111', 0, 1000, now(), '0x3600000000000000000000000000000000000000', v_wallet_a, v_gate, 1000000, 'final', 'real', 'testnet', v_group_a
+  );
+
+  insert into observed_transfers (
+    id, tx_hash, log_index, block_number, block_time, token, from_address, to_address, amount, finality, mode, stake, group_id
+  ) values (
+    v_transfer_b, '0xbbb222', 0, 1001, now(), '0x3600000000000000000000000000000000000000', v_wallet_b, v_gate, 1000000, 'final', 'real', 'testnet', v_group_b
   );
 
   raise notice '>>> Fixtures created successfully.';
@@ -368,8 +394,80 @@ begin
     raise exception 'TEST FAILED: authenticated user A saw rounds of group B!';
   end if;
 
+  -- d1) E3: observed_transfers cross-group RLS isolation
+  -- User A sees transfers of own group A (both the fixture transfer and watcher test transfer)
+  select count(*) into v_cnt from observed_transfers where group_id = v_group_a;
+  if v_cnt < 1 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user A could not see observed_transfers of own group A (got %)', v_cnt;
+  end if;
+
+  -- User A CANNOT see transfers of group B (RLS leak check!)
+  select count(*) into v_cnt from observed_transfers where group_id = v_group_b;
+  if v_cnt <> 0 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user A saw observed_transfers of group B (RLS leak)!';
+  end if;
+
+  -- d2) E3: authorized_actions cross-group RLS isolation
+  -- User A sees actions of own group A
+  select count(*) into v_cnt from authorized_actions where group_id = v_group_a;
+  if v_cnt <> 1 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user A could not see authorized_actions of own group A!';
+  end if;
+
+  -- User A CANNOT see actions of group B (RLS leak check!)
+  select count(*) into v_cnt from authorized_actions where group_id = v_group_b;
+  if v_cnt <> 0 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user A saw authorized_actions of group B (RLS leak)!';
+  end if;
+
+  -- d3) User B session: sees group B rows only, cannot see group A rows
+  set local "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+
+  select count(*) into v_cnt from observed_transfers where group_id = v_group_b;
+  if v_cnt <> 1 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user B could not see observed_transfers of group B!';
+  end if;
+
+  select count(*) into v_cnt from observed_transfers where group_id = v_group_a;
+  if v_cnt <> 0 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user B saw observed_transfers of group A (RLS leak)!';
+  end if;
+
+  select count(*) into v_cnt from authorized_actions where group_id = v_group_b;
+  if v_cnt <> 1 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user B could not see authorized_actions of group B!';
+  end if;
+
+  select count(*) into v_cnt from authorized_actions where group_id = v_group_a;
+  if v_cnt <> 0 then
+    reset role;
+    raise exception 'TEST FAILED: authenticated user B saw authorized_actions of group A (RLS leak)!';
+  end if;
+
+  -- d4) Unaffiliated authenticated user session: cannot see rows in either group
+  set local "request.jwt.claim.sub" = '99999999-9999-9999-9999-999999999999';
+
+  select count(*) into v_cnt from observed_transfers;
+  if v_cnt <> 0 then
+    reset role;
+    raise exception 'TEST FAILED: unaffiliated authenticated user saw observed_transfers!';
+  end if;
+
+  select count(*) into v_cnt from authorized_actions;
+  if v_cnt <> 0 then
+    reset role;
+    raise exception 'TEST FAILED: unaffiliated authenticated user saw authorized_actions!';
+  end if;
+
   reset role;
-  raise notice '  [PASS] authenticated: RLS non-recursive isolation confirmed (sees only own-group rows)';
+  raise notice '  [PASS] authenticated: RLS non-recursive isolation confirmed (sees only own-group rows on groups, members, rounds, observed_transfers, authorized_actions)';
 
   -- e) insert into tables without grant must fail
   begin

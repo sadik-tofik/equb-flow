@@ -815,6 +815,7 @@ describe('Apply Approved Proposals (docs/06-TDD.md 4.2a, 4.3, 4.4)', () => {
 
     expect(run2.payoutResult.attempted).toBe(true);
     expect(run2.payoutResult.authorized).toBe(true);
+    
     expect(run2.payoutResult.failedReasons.length).toBe(0);
     expect(payoutAuthorized).toBe(true);
   });

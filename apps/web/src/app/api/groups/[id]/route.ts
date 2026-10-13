@@ -2,7 +2,7 @@
 import { type NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser } from '@/lib/auth';
-import { getAuthorizerPool } from '@/lib/db';
+import { getRlsClient } from '@/lib/db';
 import { formatUsdcBaseUnits } from '@/lib/money';
 import type { GroupSummary, MyObligation } from '@/lib/types';
 
@@ -11,14 +11,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const sessionUser = await getSessionUser(req);
-  const { id: groupId } = await params;
+  if (!sessionUser) {
+    return apiError('not_signed_in', 'Sign in required', 401);
+  }
 
-  const pool = getAuthorizerPool();
-  const client = await pool.connect();
+  const { id: groupId } = await params;
+  const rls = await getRlsClient(sessionUser.userId);
 
   try {
-    // 1. Fetch group
-    const grpRes = await client.query(
+    // 1. Fetch group under RLS
+    const grpRes = await rls.query(
       `SELECT g.*, r.version as rules_version, r.rules_hash
        FROM public.groups g
        LEFT JOIN public.rule_sets r ON r.group_id = g.id AND r.version = (
@@ -29,7 +31,7 @@ export async function GET(
     );
 
     if (grpRes.rows.length === 0) {
-      return apiError('not_a_member', 'Group not found', 404);
+      return apiError('not_a_member', 'You must be a member of this group to view details', 403);
     }
 
     const row = grpRes.rows[0];
@@ -37,24 +39,22 @@ export async function GET(
     // Check authorization: must be member, organizer, or public audit
     let isMember = false;
     let memberRow: any = null;
-    if (sessionUser) {
-      const memRes = await client.query(
-        `SELECT * FROM public.members WHERE group_id = $1 AND user_id = $2`,
-        [groupId, sessionUser.userId]
-      );
-      if (memRes.rows.length > 0) {
-        isMember = true;
-        memberRow = memRes.rows[0];
-      }
+    const memRes = await rls.query(
+      `SELECT * FROM public.members WHERE group_id = $1 AND user_id = $2`,
+      [groupId, sessionUser.userId]
+    );
+    if (memRes.rows.length > 0) {
+      isMember = true;
+      memberRow = memRes.rows[0];
     }
 
-    const isOrganizer = sessionUser && sessionUser.userId === row.created_by;
+    const isOrganizer = sessionUser.userId === row.created_by;
     if (!isMember && !isOrganizer && !row.public_audit) {
       return apiError('not_a_member', 'You must be a member of this group to view details', 403);
     }
 
     // 2. Count actual registered members
-    const countRes = await client.query(
+    const countRes = await rls.query(
       `SELECT count(*) as count FROM public.members WHERE group_id = $1`,
       [groupId]
     );
@@ -112,7 +112,7 @@ export async function GET(
     let nextActionText = 'Awaiting round schedule.';
 
     if (memberRow && row.current_round_no > 0) {
-      const prRes = await client.query(
+      const prRes = await rls.query(
         `SELECT pr.*, r.deadline_at, r.grace_ends_at
          FROM public.payment_requests pr
          JOIN public.rounds r ON r.id = pr.round_id
@@ -158,6 +158,6 @@ export async function GET(
   } catch (err: any) {
     return apiError('try_again_later', err?.message || 'Failed to retrieve group', 500);
   } finally {
-    client.release();
+    await rls.release();
   }
 }

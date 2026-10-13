@@ -1,6 +1,9 @@
-// apps/executor/src/circle-adapter.ts
+import * as circleSdkModule from '@circle-fin/developer-controlled-wallets';
+import { createHash, randomUUID } from 'node:crypto';
 
-import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
+const initiateDeveloperControlledWalletsClient: any =
+  (circleSdkModule as any).initiateDeveloperControlledWalletsClient ||
+  (circleSdkModule as any).default?.initiateDeveloperControlledWalletsClient;
 import type {
   WalletAdapter,
   TransferParams,
@@ -12,6 +15,26 @@ import type {
 const ARC_BLOCKCHAIN = 'ARC-TESTNET';
 const DEFAULT_RPC = 'https://rpc.testnet.arc.network';
 const DEFAULT_USDC = '0x3600000000000000000000000000000000000000';
+const DEFAULT_USDC_TOKEN_ID = 'ef87c8c3-85de-598a-af50-c5135eecfa74';
+
+function baseUnitsToCircleAmount(amountStr: string): string {
+  if (amountStr.includes('.')) return amountStr;
+  const base = BigInt(amountStr);
+  const integerPart = (base / 1_000_000n).toString();
+  const remainder = base % 1_000_000n;
+  if (remainder === 0n) return integerPart;
+  const fracPart = remainder.toString().padStart(6, '0').replace(/0+$/, '');
+  return `${integerPart}.${fracPart}`;
+}
+
+function toCircleUuid(key?: string): string {
+  if (!key) return randomUUID();
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
+    return key;
+  }
+  const hash = createHash('sha256').update(key).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
 
 // Keccak-256 hash of "Released(uint256,uint256,address,uint256)"
 const RELEASED_EVENT_TOPIC0 =
@@ -121,16 +144,25 @@ export class CircleWalletAdapter implements WalletAdapter {
     let attempt = 0;
     while (true) {
       try {
-        const res = await this.client.createTransaction({
+        const circleAmount = baseUnitsToCircleAmount(params.amount);
+        const txPayload: any = {
           walletId: params.walletId,
           destinationAddress: params.destinationAddress,
-          tokenAddress: params.tokenAddress || DEFAULT_USDC,
-          amounts: [params.amount],
-          blockchain: ARC_BLOCKCHAIN,
+          amounts: [circleAmount],
           fee: { type: 'level', config: { feeLevel: 'MEDIUM' } },
-          idempotencyKey: params.idempotencyKey,
+          idempotencyKey: toCircleUuid(params.idempotencyKey),
           refId: params.refId || params.idempotencyKey,
-        });
+        };
+
+        if (params.tokenId) {
+          txPayload.tokenId = params.tokenId;
+        } else if (!params.tokenAddress || params.tokenAddress.toLowerCase() === DEFAULT_USDC.toLowerCase()) {
+          txPayload.tokenId = DEFAULT_USDC_TOKEN_ID;
+        } else {
+          txPayload.tokenAddress = params.tokenAddress;
+        }
+
+        const res = await this.client.createTransaction(txPayload);
 
         const tx = res.data?.transaction || res.data;
         return {
@@ -145,7 +177,7 @@ export class CircleWalletAdapter implements WalletAdapter {
         }
         const delay = this.initialBackoffMs * Math.pow(2, attempt - 1);
         console.warn(
-          `[CircleWalletAdapter] Network error ('${err.message}') on sendTransfer. Retrying with SAME idempotency key ${params.idempotencyKey} in ${delay}ms...`
+          `[CircleWalletAdapter] Network error ('${err.message}') on sendTransfer. Retrying with SAME idempotency key in ${delay}ms...`
         );
         await sleep(delay);
       }
@@ -167,7 +199,7 @@ export class CircleWalletAdapter implements WalletAdapter {
           abiParameters: params.abiParameters,
           amount: params.amount,
           fee: { type: 'level', config: { feeLevel: 'MEDIUM' } },
-          idempotencyKey: params.idempotencyKey,
+          idempotencyKey: toCircleUuid(params.idempotencyKey),
           refId: params.refId || params.idempotencyKey,
         });
 
@@ -343,12 +375,13 @@ export class CircleWalletAdapter implements WalletAdapter {
       const txs = res.data?.transactions || [];
       return txs.some(
         (tx: any) =>
-          tx.state === 'COMPLETE' ||
-          tx.state === 'CONFIRMED' ||
-          tx.state === 'PENDING' ||
-          tx.state === 'SENT' ||
-          tx.state === 'QUEUED' ||
-          tx.state === 'INITIATED'
+          tx.refId === refId &&
+          (tx.state === 'COMPLETE' ||
+            tx.state === 'CONFIRMED' ||
+            tx.state === 'PENDING' ||
+            tx.state === 'SENT' ||
+            tx.state === 'QUEUED' ||
+            tx.state === 'INITIATED')
       );
     } catch {
       return false;

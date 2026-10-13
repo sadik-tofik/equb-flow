@@ -70,6 +70,17 @@ export async function executeNextAction(
   const releaserWalletId = options?.releaserWalletId || 'releaser-wallet';
 
   // 1. Select next authorized action for update skip locked
+  const queryParams: unknown[] = [];
+  let whereClause = "WHERE a.status = 'authorized'";
+  if (options?.groupId) {
+    queryParams.push(options.groupId);
+    whereClause += ` AND a.group_id = $${queryParams.length}`;
+  }
+  if (options?.actionId) {
+    queryParams.push(options.actionId);
+    whereClause += ` AND a.id = $${queryParams.length}`;
+  }
+
   const selRes = await dbClient.query(`
     SELECT a.*,
            g.paused as group_paused,
@@ -82,11 +93,11 @@ export async function executeNextAction(
     FROM public.authorized_actions a
     JOIN public.groups g ON g.id = a.group_id
     LEFT JOIN public.rounds r ON r.id = a.round_id
-    WHERE a.status = 'authorized'
+    ${whereClause}
     ORDER BY a.created_at ASC
     FOR UPDATE OF a SKIP LOCKED
     LIMIT 1
-  `);
+  `, queryParams);
 
   if (selRes.rows.length === 0) {
     return { processed: false, status: 'no_action' };
@@ -205,26 +216,65 @@ export async function executeNextAction(
 
     switch (kind) {
       case 'payout_release': {
-        sendResponse = await adapter.callContract({
-          walletId: releaserWalletId,
-          contractAddress: gateAddress,
-          abiFunctionSignature: 'release(uint256,uint256,uint256)',
-          abiParameters: [cycleNo.toString(), roundNo.toString(), action.amount],
-          idempotencyKey: action.idempotency_key,
-          refId: action.idempotency_key,
-        });
+        if (action.group_gate) {
+          sendResponse = await adapter.callContract({
+            walletId: releaserWalletId,
+            contractAddress: action.group_gate,
+            abiFunctionSignature: 'release(uint256,uint256,uint256)',
+            abiParameters: [cycleNo.toString(), roundNo.toString(), action.amount],
+            idempotencyKey: action.idempotency_key,
+            refId: action.idempotency_key,
+          });
+        } else {
+          // Service-only enforcement: direct ERC-20 transfer from pot/treasury to recipient
+          let potWalletId = String(action.params?.fromWalletId || '');
+          if (!potWalletId) {
+            const regRes = await dbClient.query(
+              'SELECT funding_source FROM public.wallet_registry WHERE address = $1',
+              [action.group_destination]
+            );
+            potWalletId = regRes.rows[0]?.funding_source || action.group_destination || treasuryWalletId;
+          }
+          sendResponse = await adapter.sendTransfer({
+            walletId: potWalletId,
+            destinationAddress: action.to_address,
+            tokenAddress: usdcAddress,
+            amount: action.amount,
+            idempotencyKey: action.idempotency_key,
+            refId: action.idempotency_key,
+          });
+        }
         break;
       }
 
       case 'contribution_send': {
         let fromWalletId = String(action.params?.fromWalletId || '');
-        if (!fromWalletId && action.params?.memberId) {
+        let memberAddress = '';
+
+        if (!fromWalletId && action.params?.paymentRequestId) {
+          const prRes = await dbClient.query(
+            'SELECT m.wallet_address FROM public.payment_requests pr JOIN public.members m ON m.id = pr.member_id WHERE pr.id = $1',
+            [action.params.paymentRequestId]
+          );
+          memberAddress = prRes.rows[0]?.wallet_address || '';
+        }
+
+        if (!fromWalletId && !memberAddress && action.params?.memberId) {
           const mRes = await dbClient.query(
             'SELECT wallet_address FROM public.members WHERE id = $1',
             [action.params.memberId]
           );
-          fromWalletId = mRes.rows[0]?.wallet_address;
+          memberAddress = mRes.rows[0]?.wallet_address || '';
         }
+
+        if (!fromWalletId && memberAddress) {
+          const regRes = await dbClient.query(
+            'SELECT funding_source FROM public.wallet_registry WHERE address = $1',
+            [memberAddress]
+          );
+          fromWalletId = regRes.rows[0]?.funding_source || memberAddress;
+        }
+
         if (!fromWalletId) {
           fromWalletId = treasuryWalletId;
         }
@@ -372,10 +422,10 @@ export async function executeNextAction(
       ]
     );
 
-    // If payout, mark round complete
+    // If payout, mark round paid
     if (kind === 'payout_release' && action.round_id) {
       await dbClient.query(
-        "UPDATE public.rounds SET status = 'completed' WHERE id = $1",
+        "UPDATE public.rounds SET status = 'paid' WHERE id = $1",
         [action.round_id]
       );
     }

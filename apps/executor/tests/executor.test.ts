@@ -100,7 +100,7 @@ function createMockDb(opts?: MockDbOptions) {
       }
 
       // UPDATE rounds
-      if (sql.includes("UPDATE public.rounds SET status = 'completed'")) {
+      if (sql.includes("UPDATE public.rounds") && (sql.includes("'completed'") || sql.includes("'paid'"))) {
         roundCompleted = true;
         return { rows: [] };
       }

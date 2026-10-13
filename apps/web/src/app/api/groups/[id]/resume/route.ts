@@ -3,6 +3,7 @@ import { type NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser } from '@/lib/auth';
 import { getAuthorizerPool } from '@/lib/db';
+import { verifyRequestOrigin } from '@/lib/csrf';
 import { appendDecisionRecordWithChain } from '@equbflow/db';
 import type { Mode } from '@equbflow/domain';
 
@@ -10,6 +11,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = verifyRequestOrigin(req);
+  if (!originCheck.valid) {
+    return apiError('not_allowed', originCheck.reason || 'Cross-origin request rejected', 403);
+  }
+
   const sessionUser = await getSessionUser(req);
   if (!sessionUser) {
     return apiError('not_signed_in', 'Authentication required', 401);

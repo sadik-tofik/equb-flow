@@ -107,6 +107,8 @@ export interface CreatedMemberWallet {
 }
 
 export interface ExecutorRunOptions {
+  groupId?: string;
+  actionId?: string;
   maxAttempts?: number;
   backoffMs?: number;
   rpcUrl?: string;

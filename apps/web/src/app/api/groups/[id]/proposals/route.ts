@@ -2,7 +2,7 @@
 import { type NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser } from '@/lib/auth';
-import { getAuthorizerPool } from '@/lib/db';
+import { getRlsClient } from '@/lib/db';
 import type { ProposalView } from '@/lib/types';
 
 export async function GET(
@@ -10,23 +10,33 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const sessionUser = await getSessionUser(req);
+  if (!sessionUser) {
+    return apiError('not_signed_in', 'Sign in required', 401);
+  }
+
   const { id: groupId } = await params;
   const url = new URL(req.url);
   const statusFilter = url.searchParams.get('status');
 
-  const pool = getAuthorizerPool();
-  const client = await pool.connect();
+  const rls = await getRlsClient(sessionUser.userId);
 
   try {
+    // Check group under RLS
+    const grpRes = await rls.query(
+      `SELECT id FROM public.groups WHERE id = $1`,
+      [groupId]
+    );
+    if (grpRes.rows.length === 0) {
+      return apiError('not_a_member', 'You are not a member of this group', 403);
+    }
+
     let currentMemberId: string | null = null;
-    if (sessionUser) {
-      const memRes = await client.query(
-        `SELECT id FROM public.members WHERE group_id = $1 AND user_id = $2`,
-        [groupId, sessionUser.userId]
-      );
-      if (memRes.rows.length > 0) {
-        currentMemberId = memRes.rows[0].id;
-      }
+    const memRes = await rls.query(
+      `SELECT id FROM public.members WHERE group_id = $1 AND user_id = $2`,
+      [groupId, sessionUser.userId]
+    );
+    if (memRes.rows.length > 0) {
+      currentMemberId = memRes.rows[0].id;
     }
 
     let sql = `
@@ -44,12 +54,12 @@ export async function GET(
 
     sql += ` GROUP BY p.id ORDER BY p.created_at DESC`;
 
-    const propRes = await client.query(sql, queryParams);
+    const propRes = await rls.query(sql, queryParams);
 
     // Get votes by current user
     let userVotedSet = new Set<string>();
     if (currentMemberId) {
-      const votesRes = await client.query(
+      const votesRes = await rls.query(
         `SELECT proposal_id FROM public.approvals WHERE member_id = $1`,
         [currentMemberId]
       );
@@ -85,6 +95,6 @@ export async function GET(
   } catch (err: any) {
     return apiError('try_again_later', err?.message || 'Failed to retrieve proposals', 500);
   } finally {
-    client.release();
+    await rls.release();
   }
 }

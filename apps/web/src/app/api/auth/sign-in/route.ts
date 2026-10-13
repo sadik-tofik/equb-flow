@@ -2,9 +2,24 @@
 import { type NextRequest } from 'next/server';
 import { SignInSchema } from '@/lib/validations';
 import { apiError, apiSuccess } from '@/lib/api-response';
+import { verifyRequestOrigin } from '@/lib/csrf';
+import { checkRateLimit, extractClientIp } from '@/lib/rate-limit';
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
+  // 1. Verify Origin matches site (Security E2)
+  const originCheck = verifyRequestOrigin(req);
+  if (!originCheck.valid) {
+    return apiError('not_allowed', originCheck.reason || 'Cross-origin request rejected', 403);
+  }
+
+  // 2. Rate limit per IP
+  const clientIp = extractClientIp(req);
+  const ipLimit = checkRateLimit(`ip:${clientIp}:signin`, { windowMs: 15 * 60 * 1000, max: 5 });
+  if (!ipLimit.allowed) {
+    return apiError('rate_limited', 'Too many requests from this IP. Please try again later.', 429);
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const parseRes = SignInSchema.safeParse(body);
@@ -13,6 +28,12 @@ export async function POST(req: NextRequest) {
     }
 
     const { email } = parseRes.data;
+
+    // 3. Rate limit per email
+    const emailLimit = checkRateLimit(`email:${email.toLowerCase()}:signin`, { windowMs: 15 * 60 * 1000, max: 5 });
+    if (!emailLimit.allowed) {
+      return apiError('rate_limited', 'Too many sign-in attempts for this email. Please try again later.', 429);
+    }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

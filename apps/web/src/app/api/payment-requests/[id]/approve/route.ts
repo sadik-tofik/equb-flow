@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser, isFreshSignIn } from '@/lib/auth';
 import { getAuthorizerPool } from '@/lib/db';
+import { verifyRequestOrigin } from '@/lib/csrf';
 import { appendDecisionRecordWithChain } from '@equbflow/db';
 import type { Mode } from '@equbflow/domain';
 
@@ -11,6 +12,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = verifyRequestOrigin(req);
+  if (!originCheck.valid) {
+    return apiError('not_allowed', originCheck.reason || 'Cross-origin request rejected', 403);
+  }
+
   const sessionUser = await getSessionUser(req);
   if (!sessionUser) {
     return apiError('not_signed_in', 'Authentication required', 401);
@@ -54,30 +60,32 @@ export async function POST(
 
     const pr = prRes.rows[0];
 
-    // Ownership check
+    // Ownership check (only the member who owes)
     if (pr.user_id !== sessionUser.userId) {
       await client.query('ROLLBACK');
       return apiError('not_allowed', 'You can only approve contributions for your own account', 403);
     }
 
     // Paused check
-    if (pr.paused) {
+    if (pr.paused || pr.group_status === 'paused') {
       await client.query('ROLLBACK');
       return apiError('group_paused', 'The group is currently paused. Contributions cannot be sent.', 400);
     }
 
-    // Already paid check
-    if (pr.status === 'credited') {
+    // Refused when request is not open
+    if (pr.status !== 'open') {
       await client.query('ROLLBACK');
-      return apiError('already_paid', 'This contribution has already been credited.', 400);
+      return apiError('not_allowed', `Payment request is not open (status: ${pr.status})`, 400);
     }
 
-    // Check if an authorized action is already active for this request
+    const idempotencyKey = `contribution:${requestId}`;
+
+    // Check if an authorized action is already active for this request (handles double submit idempotently)
     const existingAction = await client.query(
       `SELECT id, status, tx_hash FROM public.authorized_actions
-       WHERE (params->>'paymentRequestId') = $1 AND status IN ('authorized', 'sending', 'submitted', 'confirmed')
+       WHERE idempotency_key = $1
        LIMIT 1`,
-      [requestId]
+      [idempotencyKey]
     );
 
     if (existingAction.rows.length > 0) {
@@ -91,7 +99,7 @@ export async function POST(
       });
     }
 
-    // Calculate remaining amount
+    // Calculate remaining amount (amount equals the remaining)
     const contrRes = await client.query(
       `SELECT coalesce(sum(amount), 0) as credited FROM public.contributions
        WHERE request_id = $1`,
@@ -111,7 +119,6 @@ export async function POST(
     }
 
     const actionId = randomUUID();
-    const idempotencyKey = `contrib-${requestId}-${Date.now()}`;
 
     // 3. Append decision record for action authorization
     const decRec = await appendDecisionRecordWithChain(client, {

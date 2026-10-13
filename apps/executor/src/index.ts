@@ -6,3 +6,4 @@ export * from './circle-adapter.js';
 export * from './fake-adapter.js';
 export * from './member-wallet.js';
 export * from './executor-service.js';
+export * from './runner.js';

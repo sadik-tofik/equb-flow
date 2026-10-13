@@ -23,4 +23,4 @@ coverage/
 .claude/settings.local.json
 .gemini/
 # private notes (participants, invoices)
-private/*.tsbuildinfo
+*.tsbuildinfo

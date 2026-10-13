@@ -1,27 +1,32 @@
 // apps/web/src/app/api/groups/[id]/verify/route.ts
 import { type NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-response';
-import { getAuthorizerPool } from '@/lib/db';
+import { getSessionUser } from '@/lib/auth';
+import { getRlsClient } from '@/lib/db';
 import { verifyDecisionChain, type DecisionRecord, type Mode } from '@equbflow/domain';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const sessionUser = await getSessionUser(req);
+  if (!sessionUser) {
+    return apiError('not_signed_in', 'Authentication required', 401);
+  }
+
   const { id: groupId } = await params;
-  const pool = getAuthorizerPool();
-  const client = await pool.connect();
+  const rls = await getRlsClient(sessionUser.userId);
 
   try {
-    const grpRes = await client.query(
+    const grpRes = await rls.query(
       `SELECT id, name FROM public.groups WHERE id = $1`,
       [groupId]
     );
     if (grpRes.rows.length === 0) {
-      return apiError('validation_failed', 'Group not found', 404);
+      return apiError('not_a_member', 'You are not a member of this group', 403);
     }
 
-    const decRes = await client.query(
+    const decRes = await rls.query(
       `SELECT id, group_id, seq, kind, decision_type, mode, payload, prev_hash, hash, signature, created_at
        FROM public.decision_records
        WHERE group_id = $1
@@ -61,6 +66,6 @@ export async function GET(
   } catch (err: any) {
     return apiError('try_again_later', err?.message || 'Failed to verify decision chain', 500);
   } finally {
-    client.release();
+    await rls.release();
   }
 }

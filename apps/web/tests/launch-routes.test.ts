@@ -25,6 +25,7 @@ const TEST_DB_URL =
   'postgres://postgres:postgres@localhost:5433/equbflow_test';
 
 process.env.DATABASE_URL_AUTHORIZER = TEST_DB_URL;
+process.env.ALLOW_TEST_AUTH_BYPASS = 'true';
 
 function makeMockRequest(url: string, body?: any, userHeader?: { userId: string; email: string; lastSignInAt: string }) {
   const headers = new Headers();
@@ -127,7 +128,7 @@ describe('apps/web: Launch Routes Integration (docs/06-TDD.md Section 9 & Task D
     expect(res.status).toBe(201);
     const data = await res.json();
 
-    expect(data.token).toMatch(/^inv-/);
+    expect(data.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(data.url).toBe(`/join/${data.token}`);
     expect(data.status).toBe('active');
 
@@ -275,8 +276,9 @@ describe('apps/web: Launch Routes Integration (docs/06-TDD.md Section 9 & Task D
     );
 
     const res = await getRoundRoute(req, { params: Promise.resolve({ id: createdGroupId, n: '1' }) });
-    expect(res.status).toBe(200);
     const data = await res.json();
+    if (res.status !== 200) console.log('DEBUG getRoundRoute:', JSON.stringify(data));
+    expect(res.status).toBe(200);
 
     expect(data.roundNo).toBe(1);
     expect(data.contributions).toHaveLength(3);
@@ -427,7 +429,11 @@ describe('apps/web: Launch Routes Integration (docs/06-TDD.md Section 9 & Task D
   });
 
   it('12. GET /api/groups/:id/verify: verifies cryptographic SHA-256 hash chain of decision records', async () => {
-    const req = makeMockRequest(`http://localhost:3000/api/groups/${createdGroupId}/verify`);
+    const req = makeMockRequest(
+      `http://localhost:3000/api/groups/${createdGroupId}/verify`,
+      undefined,
+      { userId: organizerId, email: 'organizer@equbflow.test', lastSignInAt: new Date().toISOString() }
+    );
     const res = await verifyChainRoute(req, { params: Promise.resolve({ id: createdGroupId }) });
 
     expect(res.status).toBe(200);

@@ -5,11 +5,17 @@ import { CreateInviteSchema } from '@/lib/validations';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { getSessionUser } from '@/lib/auth';
 import { getAuthorizerPool } from '@/lib/db';
+import { verifyRequestOrigin } from '@/lib/csrf';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = verifyRequestOrigin(req);
+  if (!originCheck.valid) {
+    return apiError('not_allowed', originCheck.reason || 'Cross-origin request rejected', 403);
+  }
+
   const sessionUser = await getSessionUser(req);
   if (!sessionUser) {
     return apiError('not_signed_in', 'Authentication required', 401);
@@ -40,7 +46,7 @@ export async function POST(
       return apiError('not_allowed', 'Only the group organizer can issue invitations', 403);
     }
 
-    const token = 'inv-' + randomBytes(8).toString('hex');
+    const token = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
 
     await client.query(

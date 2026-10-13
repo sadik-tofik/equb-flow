@@ -9,8 +9,16 @@ export interface AuthSessionUser {
   lastSignInAt: string; // ISO-8601
 }
 
-const SESSION_COOKIE_NAME = 'eq_session_token';
-const SIGNIN_TIME_COOKIE_NAME = 'eq_signin_time';
+export const SESSION_COOKIE_NAME = 'eq_session_token';
+export const SIGNIN_TIME_COOKIE_NAME = 'eq_signin_time';
+
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production' || process.env.SECURE_COOKIES === 'true',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: 60 * 60 * 24 * 7, // 7 days
+};
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +32,8 @@ function getSupabaseClient() {
  * It verifies the Supabase session on the server (access token with Supabase).
  * In production mode, it accepts NO identity headers (e.g. x-user-id).
  * Any test bypass strictly requires NODE_ENV === 'test' AND ALLOW_TEST_AUTH_BYPASS === 'true'.
+ *
+ * Security rule E1: Missing last_sign_in_at MUST be treated as NOT fresh (fail closed).
  */
 export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser | null> {
   const isTestMode = process.env.NODE_ENV === 'test';
@@ -37,7 +47,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
       return {
         userId: testUserId,
         email: req.headers.get('x-user-email') || `${testUserId}@test.local`,
-        lastSignInAt: req.headers.get('x-signin-time') || new Date().toISOString(),
+        lastSignInAt: req.headers.get('x-signin-time') || '',
       };
     }
 
@@ -50,7 +60,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
         return {
           userId: token.substring(0, firstColon),
           email: token.substring(firstColon + 1, secondColon),
-          lastSignInAt: token.substring(secondColon + 1),
+          lastSignInAt: token.substring(secondColon + 1) || '',
         };
       }
     }
@@ -95,7 +105,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
         return {
           userId: user.id,
           email: user.email || '',
-          lastSignInAt: user.last_sign_in_at || new Date().toISOString(),
+          lastSignInAt: user.last_sign_in_at || '',
         };
       }
     } catch {
@@ -112,7 +122,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
         return {
           userId: parsed.userId,
           email: parsed.email,
-          lastSignInAt: parsed.lastSignInAt || new Date().toISOString(),
+          lastSignInAt: parsed.lastSignInAt || '',
         };
       }
     } catch {
@@ -125,6 +135,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
 
 /**
  * Creates a serialized session token and sets cookies.
+ * Enforces Security E2: HttpOnly, Secure, SameSite=Lax.
  */
 export async function setAuthSession(user: { id: string; email: string }) {
   const lastSignInAt = new Date().toISOString();
@@ -137,17 +148,11 @@ export async function setAuthSession(user: { id: string; email: string }) {
 
   try {
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
+    cookieStore.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
 
     cookieStore.set(SIGNIN_TIME_COOKIE_NAME, lastSignInAt, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: SESSION_COOKIE_OPTIONS.secure,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
@@ -171,10 +176,16 @@ export async function clearAuthSession() {
 
 /**
  * Checks whether user signed in within the last 5 minutes (TDD 9.2 freshness rule).
+ * E1: Treats missing/empty/invalid lastSignInAt as NOT fresh (fail closed).
  */
-export function isFreshSignIn(lastSignInAt: string, maxMinutes = 5): boolean {
+export function isFreshSignIn(lastSignInAt?: string | null, maxMinutes = 5): boolean {
+  if (!lastSignInAt || typeof lastSignInAt !== 'string' || lastSignInAt.trim() === '') {
+    return false;
+  }
   const signinTime = new Date(lastSignInAt).getTime();
-  if (Number.isNaN(signinTime)) return false;
+  if (Number.isNaN(signinTime)) {
+    return false;
+  }
   const now = Date.now();
   const diffMs = now - signinTime;
   return diffMs >= -5000 && diffMs <= maxMinutes * 60 * 1000;
