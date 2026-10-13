@@ -2,9 +2,14 @@
   "name": "equbflow-monorepo",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.14.0",
   "scripts": {
     "test": "pnpm -r test",
     "test:sandbox": "tsx scripts/test-authorizer-sandbox.ts",
+    "e2e:sandbox": "tsx --env-file=.env scripts/e2e-sandbox.ts",
+    "start:runner": "tsx apps/worker/src/runner.ts",
+    "start:executor": "tsx apps/executor/src/runner.ts",
+    "build:web": "pnpm --filter @equbflow/domain build && pnpm --filter @equbflow/db build && pnpm --filter @equbflow/web build",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build"
   },
@@ -12,5 +17,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^10.8.1"
   }
 }
