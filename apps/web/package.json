@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "pnpm --filter @equbflow/domain build && pnpm --filter @equbflow/db build && next build",
+    "build:web": "pnpm run build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
