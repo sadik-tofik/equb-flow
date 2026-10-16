@@ -1,6 +1,6 @@
 // apps/web/src/app/api/auth/profile/route.ts
 import { type NextRequest } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, setAuthSession } from '@/lib/auth';
 import { getAuthorizerPool } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { verifyRequestOrigin } from '@/lib/csrf';
@@ -23,14 +23,25 @@ export async function POST(req: NextRequest) {
       return apiError('validation_failed', 'Alias must be between 2 and 32 characters', 400);
     }
 
-    const pool = getAuthorizerPool();
-    // Update existing member record if one exists for this user
-    await pool.query(
-      `UPDATE public.members
-       SET alias = $1
-       WHERE user_id = $2`,
-      [alias, sessionUser.userId]
-    );
+    // 1. Update session cookie so subsequent session checks know the alias
+    await setAuthSession({
+      id: sessionUser.userId,
+      email: sessionUser.email,
+      alias,
+    });
+
+    // 2. Update existing member record if one exists for this user in DB
+    try {
+      const pool = getAuthorizerPool();
+      await pool.query(
+        `UPDATE public.members
+         SET alias = $1
+         WHERE user_id = $2`,
+        [alias, sessionUser.userId]
+      );
+    } catch {
+      // Members table row may not exist yet if user hasn't joined a group
+    }
 
     return apiSuccess({
       ok: true,

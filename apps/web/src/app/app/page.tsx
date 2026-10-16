@@ -76,14 +76,18 @@ export default function GroupHomePage() {
         return;
       }
 
-      // Check if user has an alias
-      if (!sessionUser.alias || sessionUser.alias === 'You') {
+      // Check local storage for nickname if not yet in database
+      const localNickname = typeof window !== 'undefined' ? localStorage.getItem('equbflow_nickname') : null;
+      const effectiveAlias = sessionUser.alias || localNickname || null;
+
+      // Only prompt onboarding on initial interactive load, never during background polling, and only if no alias exists
+      if (!isBackground && !effectiveAlias) {
         setOnboardingOpen(true);
       }
 
       const userSession: UserSession = {
         userId: sessionUser.userId,
-        alias: sessionUser.alias || 'Member',
+        alias: effectiveAlias || 'Member',
         walletAddress: sessionUser.walletAddress || '0xeb21103e749d682c3f0e36a23852f246b1b4d016',
         role: sessionUser.role || 'member',
         groupId: sessionUser.groupId || 'grp-alpha-001',
@@ -139,18 +143,22 @@ export default function GroupHomePage() {
 
   const handleSaveNickname = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nicknameInput.trim()) return;
+    const alias = nicknameInput.trim();
+    if (!alias) return;
     setSavingNickname(true);
+    setOnboardingOpen(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('equbflow_nickname', alias);
+    }
+    setUser((prev) => (prev ? { ...prev, alias } : null));
     try {
       await fetch('/api/auth/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alias: nicknameInput.trim() }),
+        body: JSON.stringify({ alias }),
       });
-      setUser((prev) => (prev ? { ...prev, alias: nicknameInput.trim() } : null));
-      setOnboardingOpen(false);
     } catch (err) {
-      console.error('Failed to save nickname:', err);
+      console.error('Failed to save nickname on server:', err);
     } finally {
       setSavingNickname(false);
     }
@@ -392,7 +400,21 @@ export default function GroupHomePage() {
           <SettingsView
             user={user}
             isCycleStarted={group.status === 'running'}
+            onUpdateNickname={async (newNickname) => {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('equbflow_nickname', newNickname);
+              }
+              await fetch('/api/auth/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alias: newNickname }),
+              });
+              setUser((prev) => (prev ? { ...prev, alias: newNickname } : null));
+            }}
             onSignOut={async () => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('equbflow_nickname');
+              }
               await fetch('/api/auth/sign-out', { method: 'POST' }).catch(() => {});
               setUser(null);
             }}
@@ -403,7 +425,7 @@ export default function GroupHomePage() {
       {/* Choose Nickname Onboarding Modal */}
       <Sheet
         isOpen={onboardingOpen}
-        onClose={() => {}}
+        onClose={() => setOnboardingOpen(false)}
         title={locale === 'am' ? 'የእርስዎን ቅጽል ስም ይምረጡ' : locale === 'om' ? 'Maqaa Masoo Filadhaa' : 'Choose your nickname'}
       >
         <form onSubmit={handleSaveNickname} className="space-y-5 pt-3 select-none">

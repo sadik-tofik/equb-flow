@@ -7,6 +7,7 @@ export interface AuthSessionUser {
   userId: string;
   email: string;
   lastSignInAt: string; // ISO-8601
+  alias?: string;
 }
 
 export const SESSION_COOKIE_NAME = 'eq_session_token';
@@ -105,6 +106,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
         userId: parsed.userId,
         email: parsed.email,
         lastSignInAt: parsed.lastSignInAt || '',
+        alias: parsed.alias || undefined,
       };
     }
   } catch {
@@ -121,6 +123,7 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
           userId: user.id,
           email: user.email || '',
           lastSignInAt: user.last_sign_in_at || '',
+          alias: (user.user_metadata?.alias as string) || undefined,
         };
       }
     } catch {
@@ -135,12 +138,13 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
  * Creates a serialized session token and sets cookies.
  * Enforces Security E2: HttpOnly, Secure, SameSite=Lax.
  */
-export async function setAuthSession(user: { id: string; email: string }) {
+export async function setAuthSession(user: { id: string; email: string; alias?: string }) {
   const lastSignInAt = new Date().toISOString();
   const payload = JSON.stringify({
     userId: user.id,
     email: user.email,
     lastSignInAt,
+    alias: user.alias,
   });
   const token = Buffer.from(payload).toString('base64');
 
