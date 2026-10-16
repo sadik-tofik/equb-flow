@@ -3,143 +3,56 @@
 
 import React from 'react';
 import type { GroupSummary } from '../lib/types';
-import { Shield, Copy, Check, Lock } from 'lucide-react';
+import { Icon, StatusChip, AddressHash } from './ui';
 
 export function GroupSummaryCard({ group }: { group: GroupSummary }) {
-  const [copied, setCopied] = React.useState(false);
-
-  const copyAddress = () => {
-    navigator.clipboard.writeText(group.destinationAddress);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <div className="card card-hero" style={{ marginBottom: '24px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '6px',
-              flexWrap: 'wrap',
-            }}
-          >
-            <h1
-              style={{
-                fontSize: '1.5rem',
-                fontWeight: 800,
-                color: 'var(--moss)',
-              }}
-            >
+    <div className="bg-paper-1 border border-line rounded-none p-6 mb-6 select-none">
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <div className="flex-1 min-w-[260px]">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
+            <h1 className="font-display text-h2 font-medium text-ink-900 leading-tight">
               {group.name}
             </h1>
-            <span className="chip chip-info">
-              Cycle {group.cycleNo} · Round {group.currentRoundNo} of {group.memberCount}
-            </span>
+            <StatusChip
+              status="waiting"
+              label={`Cycle ${group.cycleNo} · Round ${group.currentRoundNo} of ${group.memberCount}`}
+              icon="rounds"
+            />
           </div>
-          {/* Status line from API */}
-          <p
-            style={{
-              color: 'var(--charcoal-muted)',
-              fontSize: '0.95rem',
-              maxWidth: '540px',
-            }}
-          >
+
+          {/* Status sentence directly under title (Section 6 Rule 5) */}
+          <p className="text-secondary text-ink-700 max-w-xl leading-relaxed">
             {group.statusText}
           </p>
         </div>
 
-        <div style={{ textAlign: 'right' }}>
-          <div
-            style={{
-              fontSize: '0.78rem',
-              color: 'var(--charcoal-dim)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              fontWeight: 600,
-            }}
-          >
+        {/* Hero Amount (Section 1 Principle 2: Numbers are the hero) */}
+        <div className="text-left md:text-right">
+          <div className="font-mono text-meta font-medium text-ink-500 uppercase tracking-wider">
             Contribution per Round
           </div>
-          <div
-            className="mono"
-            style={{
-              fontSize: '1.75rem',
-              fontWeight: 700,
-              color: 'var(--moss)',
-              marginTop: '2px',
-            }}
-          >
+          <div className="font-sans text-amount font-semibold tabular text-ink-900 leading-none mt-1">
             {group.contributionDisplay}
+            <span className="text-secondary text-ink-500 font-normal ml-2">USDC</span>
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: '20px',
-          paddingTop: '16px',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          fontSize: '0.82rem',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: 'var(--charcoal-dim)',
-          }}
-        >
-          <Shield size={15} color="var(--moss)" />
+      {/* Ruled bottom metadata row */}
+      <div className="mt-5 pt-4 border-t border-line flex justify-between items-center flex-wrap gap-3 text-meta text-ink-700">
+        <div className="flex items-center gap-2">
+          <Icon name="check-stamp" size={16} ariaHidden={true} color="var(--spruce-700)" />
           <span>Rules version {group.rulesVersion}</span>
-          <span
-            className="mono"
-            style={{
-              background: 'rgba(46, 64, 54, 0.08)',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.75rem',
-            }}
-          >
+          <span className="font-mono bg-paper-2 px-1.5 py-0.5 rounded-sm text-ink-900">
             #{group.rulesHash.slice(0, 8)}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Lock size={14} color="var(--charcoal-dim)" />
-          <span style={{ color: 'var(--charcoal-dim)' }}>Group Safety Lock:</span>
-          <span className="mono" style={{ color: 'var(--charcoal)', fontWeight: 500 }}>
-            {group.destinationAddress.slice(0, 6)}...{group.destinationAddress.slice(-4)}
-          </span>
-          <button
-            onClick={copyAddress}
-            style={{
-              color: copied ? 'var(--success)' : 'var(--charcoal-dim)',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            title="Copy safety lock address"
-            aria-label="Copy safety lock address"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
+        <div className="flex items-center gap-2">
+          <Icon name="lock" size={16} ariaHidden={true} color="var(--ink-700)" />
+          <span className="text-ink-500">The group&apos;s safety lock:</span>
+          <AddressHash value={group.destinationAddress} type="address" />
         </div>
       </div>
     </div>

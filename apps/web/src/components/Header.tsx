@@ -3,7 +3,7 @@
 
 import React from 'react';
 import type { UserSession, GroupSummary } from '../lib/types';
-import { ShieldAlert, UserCheck, RefreshCw, AlertCircle } from 'lucide-react';
+import { Icon, TestMoneyBadge, Banner } from './ui';
 
 interface HeaderProps {
   user: UserSession;
@@ -35,93 +35,73 @@ export function Header({ user, group, onRefreshAuth }: HeaderProps) {
 
   return (
     <>
-      {group.mode !== 'real' && (
-        <div
-          className={
-            group.mode === 'simulated'
-              ? 'mode-stripe mode-stripe-simulated'
-              : 'mode-stripe mode-stripe-sandbox'
-          }
+      {/* 2px top rule opening every page (Section 4.3 Masthead rule) */}
+      <div className="masthead-rule" />
+
+      {/* Simulated mode banner */}
+      {group.mode === 'simulated' && (
+        <Banner type="simulated" message="Simulated. Not real participants." />
+      )}
+
+      {/* Accelerated banner */}
+      {group.accelerated && (
+        <Banner
+          type="accelerated"
+          message={`Rounds are sped up for this demo. (${group.cadenceText})`}
         />
       )}
 
-      {group.accelerated && (
-        <div className="accelerated-banner">
-          <AlertCircle size={15} />
-          <span>Rounds are sped up for this demo ({group.cadenceText})</span>
-        </div>
-      )}
-
-      <header className="header-bar">
-        <div className="brand-badge">
-          <div className="brand-icon">⚡</div>
-          <div>
-            <span>EqubFlow</span>
-            <span
-              style={{
-                fontSize: '0.8rem',
-                color: 'var(--charcoal-muted)',
-                fontWeight: 500,
-                marginLeft: '8px',
-              }}
-            >
-              / {group.name}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Mandatory Persistent TEST MONEY badge */}
-          <div className="test-money-chip" title="This application runs on Arc Testnet with test USDC">
-            <ShieldAlert size={12} /> Test money, no real value
+      <header className="w-full bg-paper-1 border-b border-line px-5 py-3 sticky top-0 z-nav">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+          {/* Brand & Group Name */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Icon name="group-ring" size={24} ariaHidden={true} color="var(--spruce-700)" />
+              <span className="font-display font-medium text-lead text-ink-900 tracking-tight">
+                EqubFlow
+              </span>
+            </div>
+            <span className="text-meta text-ink-500 font-mono">/ {group.name}</span>
           </div>
 
-          <span
-            className="chip chip-neutral"
-            style={{ fontSize: '0.72rem', textTransform: 'capitalize' }}
-          >
-            {modeLabel}
-          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Mandatory Persistent TEST MONEY badge (Section 5.6) */}
+            <TestMoneyBadge />
 
-          {/* User Account & Freshness */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: '#FFFFFF',
-              padding: '4px 12px',
-              borderRadius: 'var(--radius-full)',
-              border: '1px solid var(--border-subtle)',
-              fontSize: '0.82rem',
-            }}
-          >
-            <UserCheck size={14} color="var(--success)" />
-            <span style={{ fontWeight: 600 }}>{user.alias}</span>
-            <span
-              className="mono"
-              style={{ color: 'var(--charcoal-dim)', fontSize: '0.74rem' }}
-            >
-              {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
+            {/* Mode chip */}
+            <span className="px-2 py-0.5 bg-paper-2 border border-line text-ink-700 text-meta font-mono rounded-sm select-none">
+              {modeLabel}
             </span>
 
-            <button
-              onClick={onRefreshAuth}
-              title={
-                fresh
-                  ? 'Session fresh (< 5 mins)'
-                  : 'Session expired for payments. Click to refresh.'
-              }
-              aria-label="Refresh session"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                color: fresh ? 'var(--success)' : 'var(--warning)',
-                marginLeft: '4px',
-              }}
-            >
-              <RefreshCw size={12} className={fresh ? '' : 'spin'} />
-            </button>
+            {/* User Session & Freshness Indicator */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-paper-0 border border-line rounded-sm text-secondary">
+              <span className="font-semibold text-ink-900">{user.alias}</span>
+              <span className="font-mono text-meta text-ink-500">
+                {user.walletAddress.slice(0, 6)}…{user.walletAddress.slice(-4)}
+              </span>
+
+              <button
+                type="button"
+                onClick={onRefreshAuth}
+                title={
+                  fresh
+                    ? 'Session fresh (under 5 minutes)'
+                    : 'Session expired for payments. Click to sign in again.'
+                }
+                aria-label="Refresh sign-in session"
+                className={`ml-1 flex items-center gap-1 text-meta underline underline-offset-2 ${
+                  fresh ? 'text-spruce-700' : 'text-ochre-700 font-semibold'
+                }`}
+              >
+                <Icon
+                  name="refresh"
+                  size={14}
+                  ariaHidden={true}
+                  color={fresh ? 'var(--spruce-700)' : 'var(--ochre-700)'}
+                />
+                <span className="text-[12px]">{fresh ? 'Active' : 'Refresh'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

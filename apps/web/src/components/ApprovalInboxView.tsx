@@ -5,308 +5,276 @@ import React from 'react';
 import type { ProposalView } from '../lib/types';
 import { api } from '../lib/api-client';
 import {
-  FileText,
-  ExternalLink,
-  CheckCircle,
-  XCircle,
-  RotateCcw,
-  Check,
-  AlertCircle,
-  Loader2,
-} from 'lucide-react';
+  PageHeader,
+  Icon,
+  Button,
+  TextInput,
+  EmptyState,
+  StatusChip,
+  Slip,
+  Link,
+  Sheet,
+  Stamp,
+} from './ui';
 
 interface ApprovalInboxViewProps {
   proposals: ProposalView[];
   onProposalUpdated: () => void;
+  selectedProposalId?: string | null;
 }
 
 export function ApprovalInboxView({
   proposals,
   onProposalUpdated,
+  selectedProposalId,
 }: ApprovalInboxViewProps) {
-  const [activeNoteId, setActiveNoteId] = React.useState<string | null>(null);
+  const [activeProposalId, setActiveProposalId] = React.useState<string | null>(selectedProposalId || null);
+  const [confirmDecision, setConfirmDecision] = React.useState<'approve' | 'reject' | 'send_back' | null>(null);
   const [note, setNote] = React.useState('');
-  const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  const [actionLoading, setActionLoading] = React.useState(false);
   const [feedback, setFeedback] = React.useState<string | null>(null);
 
-  const handleVote = async (
-    proposalId: string,
-    decision: 'approve' | 'reject' | 'send_back'
-  ) => {
-    setActionLoading(proposalId);
+  const activeProposal = proposals.find((p) => p.id === activeProposalId) || null;
+
+  const handleVote = async () => {
+    if (!activeProposal || !confirmDecision) return;
+
+    setActionLoading(true);
     setFeedback(null);
     try {
-      await api.voteProposal(proposalId, decision, note ? note : undefined);
-      setFeedback(`Vote recorded: ${decision}`);
-      setActiveNoteId(null);
+      await api.voteProposal(activeProposal.id, confirmDecision, note ? note : undefined);
+      setFeedback(`Vote recorded: ${confirmDecision}`);
+      setConfirmDecision(null);
+      setActiveProposalId(null);
       setNote('');
       onProposalUpdated();
     } catch (err: unknown) {
       setFeedback(err instanceof Error ? err.message : 'Action failed');
     } finally {
-      setActionLoading(null);
+      setActionLoading(false);
     }
   };
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px',
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--moss)' }}>
-            Approvals Inbox
-          </h2>
-          <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.88rem' }}>
-            Agent-reasoned proposals requiring human consensus before execution.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6 select-none">
+      {/* Page Header (Section A0 & A6) */}
+      <PageHeader
+        monoLabel="INBOX"
+        title="Approvals"
+        statusSentence="Decisions that need human review, with reasoning and evidence."
+      />
 
       {feedback && (
         <div
-          style={{
-            background: 'var(--success-bg)',
-            border: '1px solid rgba(47, 125, 79, 0.3)',
-            color: 'var(--success)',
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.86rem',
-            marginBottom: '16px',
-          }}
+          role="status"
+          className="p-3 bg-spruce-100 border border-spruce-700/30 text-spruce-700 text-meta font-medium rounded-sm"
         >
           {feedback}
         </div>
       )}
 
       {proposals.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px', background: '#FFFFFF' }}>
-          <CheckCircle size={36} color="var(--success)" style={{ margin: '0 auto 10px' }} />
-          <h3 style={{ fontSize: '1.1rem', color: 'var(--moss)' }}>Inbox Clean</h3>
-          <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.88rem', marginTop: '4px' }}>
-            There are currently no proposals waiting for your review.
-          </p>
-        </div>
+        <EmptyState
+          sentence="Nothing needs your decision right now."
+          illustrationType="inbox"
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <div className="space-y-5">
           {proposals.map((prop) => (
-            <div
+            <Slip
               key={prop.id}
-              className="card"
-              style={{
-                background: '#FFFFFF',
-                borderLeft:
-                  prop.status === 'awaiting_approval'
-                    ? '4px solid var(--clay)'
-                    : '4px solid var(--border-strong)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                  marginBottom: '10px',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span className="chip chip-info" style={{ fontWeight: 700 }}>
-                      Type {prop.decisionType}
-                    </span>
-                    <span className="mono" style={{ fontSize: '0.78rem', color: 'var(--charcoal-dim)' }}>
-                      #{prop.id}
-                    </span>
+              slipNumber={`No. P-${prop.id.slice(0, 4)}`}
+              title={prop.title}
+              isStamped={prop.status === 'approved'}
+              stampText="DECIDED"
+              actions={
+                <div className="flex items-center justify-between pt-1">
+                  <div className="font-mono text-meta text-ink-700">
+                    {prop.approvalsSoFar} of {prop.approvalsRequired} approvals so far
                   </div>
-                  <h3 style={{ fontSize: '1.15rem', color: 'var(--moss)' }}>
-                    {prop.title}
-                  </h3>
-                </div>
-
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--charcoal-dim)', fontWeight: 600 }}>
-                    Approvals
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--moss)' }}>
-                    {prop.approvalsSoFar} of {prop.approvalsRequired} required
-                  </div>
-                </div>
-              </div>
-
-              {/* Agent's reasoning in plain text */}
-              <div
-                style={{
-                  background: 'var(--cream)',
-                  padding: '14px',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: '14px',
-                  fontSize: '0.9rem',
-                  lineHeight: 1.5,
-                  color: 'var(--charcoal)',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    color: 'var(--moss)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  Agent Reasoning &amp; Recommendation
-                </div>
-                {prop.reasoning}
-              </div>
-
-              {/* Evidence list */}
-              {prop.evidence.length > 0 && (
-                <div style={{ marginBottom: '14px' }}>
-                  <div
-                    style={{
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      color: 'var(--charcoal-dim)',
-                      textTransform: 'uppercase',
-                      marginBottom: '6px',
-                    }}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setActiveProposalId(prop.id)}
                   >
-                    Independent Evidence
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {prop.evidence.map((ev, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '0.8rem',
-                          background: '#FAF9F5',
-                          border: '1px solid var(--border-subtle)',
-                          padding: '4px 10px',
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'var(--charcoal)',
-                        }}
-                      >
-                        <FileText size={13} color="var(--moss)" />
-                        {ev.label}
-                        {ev.txUrl && (
-                          <a
-                            href={ev.txUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ color: 'var(--clay)' }}
-                          >
-                            <ExternalLink size={11} />
-                          </a>
-                        )}
-                      </span>
-                    ))}
-                  </div>
+                    Open
+                  </Button>
                 </div>
-              )}
-
-              {/* Consequence statement */}
-              <div
-                style={{
-                  fontSize: '0.84rem',
-                  color: 'var(--charcoal-muted)',
-                  marginBottom: '18px',
-                  borderTop: '1px dashed var(--border-subtle)',
-                  paddingTop: '10px',
-                }}
-              >
-                <strong>What happens if you approve:</strong> {prop.consequence}
+              }
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <StatusChip
+                  status={prop.status === 'awaiting_approval' ? 'attention' : 'verified'}
+                  label={prop.status === 'awaiting_approval' ? 'Needs your decision' : 'Decided'}
+                  icon="record"
+                />
               </div>
 
-              {/* Action Buttons */}
-              {prop.canAct ? (
-                <div>
-                  {activeNoteId === prop.id ? (
-                    <div style={{ marginBottom: '12px' }}>
-                      <input
-                        type="text"
-                        placeholder="Optional note for your decision..."
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        className="input-text"
-                        style={{ marginBottom: '8px', fontSize: '0.86rem' }}
-                      />
-                    </div>
-                  ) : null}
-
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => handleVote(prop.id, 'approve')}
-                      disabled={actionLoading === prop.id}
-                    >
-                      {actionLoading === prop.id ? (
-                        <Loader2 size={14} className="spin" />
-                      ) : (
-                        <Check size={14} />
-                      )}
-                      Approve
-                    </button>
-
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ color: 'var(--danger)', borderColor: 'rgba(179,38,30,0.3)' }}
-                      onClick={() => handleVote(prop.id, 'reject')}
-                      disabled={actionLoading === prop.id}
-                    >
-                      <XCircle size={14} />
-                      Reject
-                    </button>
-
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        if (activeNoteId !== prop.id) {
-                          setActiveNoteId(prop.id);
-                        } else {
-                          handleVote(prop.id, 'send_back');
-                        }
-                      }}
-                      disabled={actionLoading === prop.id}
-                    >
-                      <RotateCcw size={14} />
-                      {activeNoteId === prop.id ? 'Confirm Send Back' : 'Send Back'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '0.82rem',
-                    color: 'var(--charcoal-dim)',
-                    background: '#FAF9F5',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                >
-                  <AlertCircle size={14} />
-                  <span>
-                    {prop.status === 'approved'
-                      ? 'This proposal was approved and finalized.'
-                      : 'You cannot approve this proposal because it involves your account or you already voted.'}
-                  </span>
-                </div>
-              )}
-            </div>
+              <div className="text-secondary text-ink-700 mb-1">
+                The agent suggests: accept it.
+              </div>
+              <div className="font-mono text-meta text-ink-500">
+                0.10 USDC · 40 minutes late
+              </div>
+            </Slip>
           ))}
         </div>
+      )}
+
+      {/* Detail View Sheet (Section A6 Detail) */}
+      {activeProposal && (
+        <Sheet
+          isOpen={Boolean(activeProposal)}
+          onClose={() => setActiveProposalId(null)}
+          title={activeProposal.title}
+        >
+          <div className="space-y-5 select-none">
+            <div className="font-mono text-meta text-ink-500">
+              {activeProposal.approvalsSoFar} of {activeProposal.approvalsRequired} approvals so far.
+            </div>
+
+            {/* WHAT HAPPENED */}
+            <div className="space-y-1">
+              <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+                What Happened
+              </div>
+              <p className="text-secondary text-ink-900 leading-relaxed">
+                Selam&apos;s payment arrived 40 minutes after the deadline. The amount is right.
+              </p>
+            </div>
+
+            {/* WHY THE AGENT SUGGESTS THIS */}
+            <div className="p-4 bg-paper-0 border border-line space-y-1.5">
+              <div className="font-mono text-meta font-semibold uppercase tracking-wider text-spruce-700">
+                Suggested by the group&apos;s assistant
+              </div>
+              <p className="text-secondary text-ink-900 leading-relaxed max-w-[600px]">
+                {activeProposal.reasoning}
+              </p>
+            </div>
+
+            {/* EVIDENCE (Ruled list of links) */}
+            <div className="space-y-2">
+              <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+                Evidence
+              </div>
+              <div className="border-t border-b border-line divide-y divide-line text-meta font-mono">
+                {activeProposal.evidence.map((ev, idx) => (
+                  <div key={idx} className="py-2.5 flex justify-between items-center">
+                    <span className="text-ink-700">{ev.label}</span>
+                    {ev.txUrl ? (
+                      <Link href={ev.txUrl} isExternal className="text-meta">
+                        Open
+                      </Link>
+                    ) : (
+                      <span className="text-ink-500">Open</span>
+                    )}
+                  </div>
+                ))}
+                <div className="py-2.5 flex justify-between items-center">
+                  <span className="text-ink-700">Rule 2: late payments</span>
+                  <span className="text-spruce-700 underline underline-offset-2 cursor-pointer">
+                    Open
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* IF YOU APPROVE */}
+            <div className="space-y-1 pt-1">
+              <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+                If You Approve
+              </div>
+              <p className="text-secondary text-ink-700 leading-relaxed">
+                {activeProposal.consequence}
+              </p>
+            </div>
+
+            {/* Actions or Beneficiary Lock (Section A6) */}
+            {activeProposal.canAct ? (
+              <div className="pt-3 border-t border-line space-y-4">
+                <TextInput
+                  label="Optional note"
+                  placeholder="Reason for your decision"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="primary"
+                    className="flex-1"
+                    onClick={() => setConfirmDecision('approve')}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setConfirmDecision('send_back')}
+                  >
+                    Send back
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => setConfirmDecision('reject')}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-paper-2 border border-line text-meta text-ink-700">
+                {activeProposal.status === 'approved' ? (
+                  <div className="flex items-center gap-2">
+                    <Stamp text="DECIDED" animated={true} />
+                    <span>Decision recorded on chain.</span>
+                  </div>
+                ) : (
+                  <span>You cannot decide this one because it involves you.</span>
+                )}
+              </div>
+            )}
+          </div>
+        </Sheet>
+      )}
+
+      {/* Confirmation Sheet for Decision */}
+      {confirmDecision && activeProposal && (
+        <Sheet
+          isOpen={Boolean(confirmDecision)}
+          onClose={() => setConfirmDecision(null)}
+          title={`Confirm ${confirmDecision}`}
+        >
+          <div className="space-y-4 select-none">
+            <p className="text-secondary text-ink-700 leading-relaxed">
+              You are about to submit your vote: <strong className="text-ink-900 uppercase">{confirmDecision}</strong> for &quot;{activeProposal.title}&quot;.
+            </p>
+            <div className="p-3 bg-paper-0 border border-line text-meta text-ink-700">
+              <strong>Effect:</strong> {activeProposal.consequence}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setConfirmDecision(null)}
+                disabled={actionLoading}
+              >
+                Back
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                loading={actionLoading}
+                onClick={handleVote}
+              >
+                Confirm decision
+              </Button>
+            </div>
+          </div>
+        </Sheet>
       )}
     </div>
   );

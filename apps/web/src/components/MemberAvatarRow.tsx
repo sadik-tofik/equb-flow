@@ -3,99 +3,42 @@
 
 import React from 'react';
 import type { ContributionItem } from '../lib/types';
-import { CheckCircle2, Clock, AlertCircle, HelpCircle } from 'lucide-react';
+import { MemberMonogram, StatusChip } from './ui';
 
 interface MemberAvatarRowProps {
   contributions: ContributionItem[];
 }
 
 export function MemberAvatarRow({ contributions }: MemberAvatarRowProps) {
-  const getChip = (state: ContributionItem['state']) => {
+  const getStatusChip = (state: ContributionItem['state']) => {
     switch (state) {
       case 'credited':
-        return (
-          <span className="chip chip-success">
-            <CheckCircle2 size={12} /> Paid
-          </span>
-        );
+        return <StatusChip status="verified" label="Paid" icon="check-stamp" />;
       case 'waiting':
-        return (
-          <span className="chip chip-info">
-            <Clock size={12} /> Waiting
-          </span>
-        );
+        return <StatusChip status="waiting" label="Waiting" icon="clock" />;
       case 'partial':
-        return (
-          <span className="chip chip-warning">
-            <AlertCircle size={12} /> Partial
-          </span>
-        );
+        return <StatusChip status="attention" label="Partial" icon="difference" />;
       case 'late':
-        return (
-          <span className="chip chip-danger">
-            <AlertCircle size={12} /> Late
-          </span>
-        );
+        return <StatusChip status="problem" label="Late" icon="error" />;
       default:
-        return (
-          <span className="chip chip-neutral">
-            <HelpCircle size={12} /> Problem
-          </span>
-        );
+        return <StatusChip status="problem" label="Problem" icon="error" />;
     }
   };
 
   return (
-    <div className="card" style={{ marginBottom: '24px' }}>
-      <div
-        style={{
-          fontSize: '0.82rem',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.04em',
-          color: 'var(--charcoal-dim)',
-          marginBottom: '16px',
-        }}
-      >
-        Round 1 Members &amp; Contributions
+    <div className="bg-paper-1 border border-line rounded-none p-5 mb-6 select-none">
+      <div className="font-mono text-meta font-medium text-ink-500 uppercase tracking-wider mb-4">
+        Round Members and Contributions
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '14px',
-        }}
-      >
-        {contributions.map((c) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        {contributions.map((c, idx) => (
           <div
             key={c.alias}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '12px 14px',
-              background: '#FFFFFF',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-            }}
+            className="flex items-center justify-between p-3 bg-paper-0 border border-line rounded-none"
           >
-            <div className="avatar">{c.alias[0]}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  color: 'var(--charcoal)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {c.alias}
-              </div>
-              <div style={{ marginTop: '4px' }}>{getChip(c.state)}</div>
-            </div>
+            <MemberMonogram nickname={c.alias} index={idx} />
+            <div className="flex-shrink-0">{getStatusChip(c.state)}</div>
           </div>
         ))}
       </div>

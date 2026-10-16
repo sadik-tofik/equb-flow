@@ -6,15 +6,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { api } from '../../../lib/api-client';
 import type { InviteView } from '../../../lib/types';
 import {
-  ShieldCheck,
-  CheckCircle2,
-  Calendar,
-  Users,
-  Coins,
-  Loader2,
-  ArrowRight,
-  AlertCircle,
-} from 'lucide-react';
+  Icon,
+  Button,
+  ConsentControl,
+  PageHeader,
+  Stamp,
+  SlipSkeleton,
+  Link,
+} from '../../../components/ui';
 
 export default function JoinGroupPage() {
   const params = useParams();
@@ -22,12 +21,12 @@ export default function JoinGroupPage() {
   const token = typeof params.token === 'string' ? params.token : 'inv-alpha-2026';
 
   const [invite, setInvite] = React.useState<InviteView | null>(null);
-  const [alias, setAlias] = React.useState('');
   const [agreed, setAgreed] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [joining, setJoining] = React.useState(false);
-  const [joined, setJoined] = React.useState(false);
+  const [setupStep, setSetupStep] = React.useState<number>(0); // 0: not joined, 1: account created, 2: account prepared, 3: ready
   const [error, setError] = React.useState<string | null>(null);
+  const [copiedFingerprint, setCopiedFingerprint] = React.useState(false);
 
   React.useEffect(() => {
     async function loadInvite() {
@@ -35,7 +34,7 @@ export default function JoinGroupPage() {
         const data = await api.getInvite(token);
         setInvite(data);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Invalid invitation link');
+        setError(err instanceof Error ? err.message : 'Ask the organizer for a new link.');
       } finally {
         setLoading(false);
       }
@@ -46,279 +45,239 @@ export default function JoinGroupPage() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) {
-      setError('You must read and agree to the group rules before joining.');
-      return;
-    }
-    if (!alias.trim()) {
-      setError('Please choose a member alias.');
+      setError('You must confirm that you have read and agree to the circle rules.');
       return;
     }
 
     setJoining(true);
     setError(null);
     try {
-      await api.acceptInvite(token, alias);
-      setJoined(true);
+      await api.acceptInvite(token, 'Member');
+      setJoining(false);
+      setSetupStep(1);
+
+      // Account setup progression (Section A2)
       setTimeout(() => {
-        router.push('/');
+        setSetupStep(2);
       }, 1500);
+
+      setTimeout(() => {
+        setSetupStep(3);
+      }, 3500);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to join group.');
+      setError(err instanceof Error ? err.message : 'Failed to join circle.');
       setJoining(false);
     }
   };
 
+  const copyFingerprint = (hash: string) => {
+    navigator.clipboard?.writeText(hash);
+    setCopiedFingerprint(true);
+    setTimeout(() => setCopiedFingerprint(false), 2000);
+  };
+
   if (loading) {
     return (
-      <div className="container" style={{ textAlign: 'center', paddingTop: '80px' }}>
-        <Loader2 size={32} className="spin" color="var(--moss)" />
-        <p style={{ marginTop: '12px', color: 'var(--charcoal-muted)' }}>Loading invitation...</p>
+      <div className="max-w-[480px] mx-auto px-5 pt-16 select-none">
+        <PageHeader
+          monoLabel="INVITATION"
+          title="Loading circle…"
+          statusSentence="Connecting to Arc Testnet."
+        />
+        <SlipSkeleton />
       </div>
     );
   }
 
   if (error && !invite) {
     return (
-      <div className="container" style={{ maxWidth: '480px', paddingTop: '60px' }}>
-        <div className="card" style={{ textAlign: 'center', background: '#FFFFFF' }}>
-          <AlertCircle size={36} color="var(--danger)" style={{ margin: '0 auto 12px' }} />
-          <h2 style={{ fontSize: '1.3rem', color: 'var(--moss)', marginBottom: '8px' }}>
-            Invitation Not Found
-          </h2>
-          <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
-            {error}
-          </p>
-          <button className="btn btn-primary" onClick={() => router.push('/')}>
-            Go to Group Home
-          </button>
+      <div className="max-w-[480px] mx-auto px-5 pt-16 select-none">
+        <PageHeader
+          monoLabel="INVITATION NOT FOUND"
+          title="Invalid invitation link"
+          statusSentence="Ask the organizer for a new link."
+        />
+        <div className="p-6 bg-paper-1 border border-line text-center">
+          <p className="text-secondary text-ink-700 mb-6">{error}</p>
+          <Button variant="primary" onClick={() => router.push('/')}>
+            Go to circle home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Section A2: After joining setup state
+  if (setupStep > 0) {
+    return (
+      <div className="max-w-[480px] mx-auto px-5 pt-12 select-none">
+        <PageHeader
+          monoLabel={`NO. 004 · ${invite?.groupName}`}
+          title="Setting up your account"
+          statusSentence={
+            setupStep === 3
+              ? 'You are in. The circle starts when the organizer presses start.'
+              : 'Configuring your deterministic account on Arc Testnet.'
+          }
+        />
+
+        <div className="p-6 bg-paper-1 border border-line space-y-4">
+          <div className="space-y-3">
+            {/* Step 1: Account Created */}
+            <div className="flex items-center justify-between py-2 border-b border-line">
+              <span className="font-sans text-secondary font-medium text-ink-900">
+                1. Your account is created
+              </span>
+              <Stamp text="VERIFIED" animated={true} />
+            </div>
+
+            {/* Step 2: Account Number Prepared */}
+            <div className="flex items-center justify-between py-2 border-b border-line">
+              <span className="font-sans text-secondary font-medium text-ink-900">
+                2. Your account number is being prepared
+              </span>
+              {setupStep >= 2 ? (
+                <Stamp text="VERIFIED" animated={true} />
+              ) : (
+                <span className="text-meta font-mono text-ink-500">In progress</span>
+              )}
+            </div>
+
+            {/* Step 3: Ready */}
+            <div className="flex items-center justify-between py-2">
+              <span className="font-sans text-secondary font-medium text-ink-900">
+                3. Ready
+              </span>
+              {setupStep === 3 ? (
+                <Stamp text="READY" animated={true} />
+              ) : (
+                <span className="text-meta font-mono text-ink-500">Waiting</span>
+              )}
+            </div>
+          </div>
+
+          {setupStep === 3 && (
+            <div className="pt-4 border-t border-line">
+              <Button
+                variant="primary"
+                fullWidth
+                onClick={() => router.push('/')}
+              >
+                Go to the circle
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container" style={{ maxWidth: '580px', paddingTop: '32px' }}>
-      <div className="card" style={{ background: '#FFFFFF', padding: '32px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div
-            style={{
-              width: '44px',
-              height: '44px',
-              background: 'var(--moss)',
-              color: '#FFFFFF',
-              borderRadius: 'var(--radius-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 12px',
-              fontWeight: 800,
-              fontSize: '1.2rem',
-            }}
-          >
-            ⚡
+    <div className="max-w-[540px] mx-auto px-5 py-8 select-none">
+      <PageHeader
+        monoLabel="INVITATION"
+        title={invite?.groupName || 'Circle of six'}
+        statusSentence="Six people take turns receiving the pot."
+      />
+
+      <div className="bg-paper-1 border border-line p-6 md:p-8 space-y-6">
+        {/* THE CIRCLE (ruled list) */}
+        <div>
+          <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-2">
+            The Circle
           </div>
-          <h1 style={{ fontSize: '1.5rem', color: 'var(--moss)', marginBottom: '6px' }}>
-            You&apos;re invited to join {invite?.groupName}
-          </h1>
-          <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.92rem' }}>
-            A community rotating savings group on Arc Testnet
-          </p>
-        </div>
-
-        {/* Group details box */}
-        <div
-          style={{
-            background: 'var(--cream)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: '18px',
-            marginBottom: '24px',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '14px',
-              fontSize: '0.88rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Coins size={16} color="var(--clay)" />
-              <div>
-                <div style={{ color: 'var(--charcoal-dim)', fontSize: '0.78rem' }}>Contribution</div>
-                <div style={{ fontWeight: 700, color: 'var(--moss)' }}>
-                  {invite?.contributionDisplay} / round
-                </div>
-              </div>
+          <div className="border-t border-b border-line divide-y divide-line text-secondary">
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="text-ink-700">Members</span>
+              <span className="font-semibold text-ink-900 tabular">{invite?.memberCount}</span>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Users size={16} color="var(--moss)" />
-              <div>
-                <div style={{ color: 'var(--charcoal-dim)', fontSize: '0.78rem' }}>Members</div>
-                <div style={{ fontWeight: 700, color: 'var(--moss)' }}>
-                  {invite?.memberCount} members
-                </div>
-              </div>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="text-ink-700">Each person pays</span>
+              <span className="font-semibold text-ink-900 tabular">{invite?.contributionDisplay}</span>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={16} color="var(--info)" />
-              <div>
-                <div style={{ color: 'var(--charcoal-dim)', fontSize: '0.78rem' }}>Schedule</div>
-                <div style={{ fontWeight: 700, color: 'var(--moss)' }}>
-                  {invite?.cadenceText}
-                </div>
-              </div>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="text-ink-700">How often</span>
+              <span className="font-semibold text-ink-900">
+                {invite?.cadenceText} (sped up for this demo)
+              </span>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShieldCheck size={16} color="var(--success)" />
-              <div>
-                <div style={{ color: 'var(--charcoal-dim)', fontSize: '0.78rem' }}>Safety Rules</div>
-                <div style={{ fontWeight: 700, color: 'var(--moss)' }}>
-                  v{invite?.rulesVersion} (#{invite?.rulesHash.slice(0, 6)})
-                </div>
-              </div>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="text-ink-700">Payout order</span>
+              <span className="font-semibold text-ink-900">Fixed, set by the organizer</span>
+            </div>
+            <div className="py-2.5 flex justify-between items-center">
+              <span className="text-ink-700">Money</span>
+              <span className="font-semibold text-persimmon-700">Test money. No real value.</span>
             </div>
           </div>
         </div>
 
-        {/* Plain Language Rules */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3
-            style={{
-              fontSize: '0.95rem',
-              color: 'var(--moss)',
-              marginBottom: '10px',
-              fontWeight: 700,
-            }}
-          >
-            Group Rules in Plain Language
-          </h3>
-          <ul
-            style={{
-              fontSize: '0.86rem',
-              color: 'var(--charcoal-muted)',
-              lineHeight: 1.6,
-              paddingLeft: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-            }}
-          >
-            <li>Every member contributes {invite?.contributionDisplay} once per round before the deadline.</li>
+        {/* THE RULES, IN PLAIN WORDS (Section A2: Numbered 1 to 7) */}
+        <div className="space-y-3">
+          <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+            The Rules, in Plain Words
+          </div>
+
+          <ol className="list-decimal pl-5 space-y-2 text-body text-ink-900 leading-relaxed">
+            <li>You pay {invite?.contributionDisplay} each round by the deadline.</li>
+            <li>If you pay late, the group may still accept it if members vote to approve.</li>
             <li>In each round, the full accumulated pot is released to exactly one scheduled recipient.</li>
-            <li>All money movements are verified by the safety lock before any release occurs.</li>
+            <li>Every contribution is independently verified before any money can move.</li>
             <li>The group is paused automatically if any unapproved shortfall or discrepancy occurs.</li>
-          </ul>
+            <li>All decision records are append-only and cryptographically verified.</li>
+            <li>Rules cannot be altered once the cycle is started and frozen.</li>
+          </ol>
+
+          <div className="pt-2 flex items-center justify-between text-meta text-ink-500 font-mono">
+            <span>
+              Rules version {invite?.rulesVersion} · fingerprint {invite?.rulesHash.slice(0, 8)}…{invite?.rulesHash.slice(-4)}
+            </span>
+            <button
+              type="button"
+              onClick={() => copyFingerprint(invite?.rulesHash || '')}
+              className="text-spruce-700 underline underline-offset-2 hover:text-[#104032]"
+            >
+              {copiedFingerprint ? 'Copied' : 'Copy'}
+            </button>
+          </div>
         </div>
 
-        {joined ? (
-          <div
-            style={{
-              background: 'var(--success-bg)',
-              border: '1px solid rgba(47, 125, 79, 0.3)',
-              padding: '18px',
-              borderRadius: 'var(--radius-md)',
-              textAlign: 'center',
-            }}
+        {/* Consent row & Join Button (Section A2) */}
+        <form onSubmit={handleJoin} className="space-y-5 pt-3 border-t border-line">
+          <ConsentControl
+            id="join-consent"
+            checked={agreed}
+            onChange={setAgreed}
+            required
           >
-            <CheckCircle2 size={32} color="var(--success)" style={{ margin: '0 auto 8px' }} />
-            <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: '1.05rem' }}>
-              Setting up your account...
-            </div>
-            <p style={{ fontSize: '0.86rem', color: 'var(--charcoal-muted)', marginTop: '4px' }}>
-              Welcome to {invite?.groupName}. Redirecting to your group dashboard.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleJoin}>
-            <div style={{ marginBottom: '18px' }}>
-              <label
-                htmlFor="alias"
-                style={{
-                  display: 'block',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                  color: 'var(--charcoal)',
-                  marginBottom: '6px',
-                }}
-              >
-                Choose your alias in this group
-              </label>
-              <input
-                id="alias"
-                type="text"
-                placeholder="e.g. David"
-                value={alias}
-                onChange={(e) => setAlias(e.target.value)}
-                className="input-text"
-                required
-              />
-            </div>
+            I have read these rules and I agree.
+          </ConsentControl>
 
+          {error && (
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '10px',
-                marginBottom: '24px',
-                padding: '12px',
-                background: '#FAF9F5',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-              }}
+              role="alert"
+              className="p-3 bg-brick-100 border border-brick-700/30 text-brick-700 text-meta rounded-sm"
             >
-              <input
-                id="agree"
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                style={{ marginTop: '3px', cursor: 'pointer' }}
-                required
-              />
-              <label
-                htmlFor="agree"
-                style={{
-                  fontSize: '0.84rem',
-                  color: 'var(--charcoal)',
-                  lineHeight: 1.4,
-                  cursor: 'pointer',
-                }}
-              >
-                I understand and agree to the rules of <strong>{invite?.groupName}</strong> (Rules v{invite?.rulesVersion}, Hash #{invite?.rulesHash.slice(0, 8)}).
-              </label>
+              {error}
             </div>
+          )}
 
-            {error && (
-              <div
-                style={{
-                  background: 'var(--danger-bg)',
-                  border: '1px solid rgba(179, 38, 30, 0.3)',
-                  color: 'var(--danger)',
-                  padding: '10px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: '0.85rem',
-                  marginBottom: '16px',
-                }}
-              >
-                {error}
-              </div>
-            )}
+          <Button
+            type="submit"
+            variant="primary"
+            fullWidth
+            disabled={joining || !agreed}
+            loading={joining}
+          >
+            Join the circle
+          </Button>
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              style={{ width: '100%' }}
-              disabled={joining || !agreed}
-            >
-              {joining ? <Loader2 size={16} className="spin" /> : null}
-              {joining ? 'Setting up your account...' : 'Join the group'} <ArrowRight size={16} />
-            </button>
-          </form>
-        )}
+          <div className="flex items-center justify-between text-meta text-ink-500 pt-1">
+            <Link href="#terms">Terms</Link>
+            <span>and</span>
+            <Link href="#privacy">Privacy</Link>
+          </div>
+        </form>
       </div>
     </div>
   );

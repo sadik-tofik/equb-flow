@@ -3,7 +3,7 @@
 
 import React from 'react';
 import type { MyObligation } from '../lib/types';
-import { CheckCircle2, Clock, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Slip, Button, StatusChip } from './ui';
 
 interface MyObligationCardProps {
   obligation: MyObligation;
@@ -28,118 +28,53 @@ export function MyObligationCard({
     }
   };
 
-  return (
-    <div
-      className="card"
-      style={{
-        marginBottom: '24px',
-        borderLeft: isPaid
-          ? '5px solid var(--success)'
-          : isLate
-          ? '5px solid var(--danger)'
-          : '5px solid var(--clay)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div style={{ flex: '1 1 300px' }}>
-          <div
-            style={{
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'var(--charcoal-dim)',
-              marginBottom: '6px',
-            }}
-          >
-            What&apos;s next for you
-          </div>
+  const statusChip = isPaid ? (
+    <StatusChip status="verified" label="Paid" icon="check-stamp" />
+  ) : isLate ? (
+    <StatusChip status="problem" label="Late. Pay now" icon="error" />
+  ) : (
+    <StatusChip
+      status="attention"
+      label={`Due by ${formatDeadline(obligation.deadlineAt)}`}
+      icon="clock"
+    />
+  );
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '6px',
-            }}
-          >
-            <div
-              className="mono"
-              style={{
-                fontSize: '1.6rem',
-                fontWeight: 700,
-                color: isPaid ? 'var(--success)' : 'var(--moss)',
-              }}
-            >
-              {obligation.display}
+  return (
+    <div className="mb-6">
+      <Slip
+        slipNumber="No. 001"
+        date={new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        title="Your contribution"
+        amount={obligation.display.replace(/ USDC$/, '')}
+        amountSubtext={nextActionText}
+        isStamped={isPaid}
+        stampText="PAID"
+        actions={
+          <div className="flex items-center justify-between flex-wrap gap-4 pt-1">
+            <div className="text-meta text-ink-500">
+              Your account:{' '}
+              <span className="font-mono text-ink-900">
+                {obligation.boundSender.slice(0, 6)}…{obligation.boundSender.slice(-4)}
+              </span>
             </div>
 
             {isPaid ? (
-              <span className="chip chip-success">
-                <CheckCircle2 size={13} /> Confirmed Paid
-              </span>
-            ) : isLate ? (
-              <span className="chip chip-danger">
-                <AlertTriangle size={13} /> Late — Pay now
+              <span className="inline-flex items-center gap-1.5 text-secondary font-medium text-spruce-700">
+                Receipt recorded
               </span>
             ) : (
-              <span className="chip chip-warning">
-                <Clock size={13} /> Due by {formatDeadline(obligation.deadlineAt)}
-              </span>
+              <Button variant="primary" onClick={onPayClick}>
+                Send contribution
+              </Button>
             )}
           </div>
-
-          <p
-            style={{
-              color: 'var(--charcoal-muted)',
-              fontSize: '0.9rem',
-              marginBottom: '4px',
-            }}
-          >
-            {nextActionText}
-          </p>
-
-          <div style={{ fontSize: '0.8rem', color: 'var(--charcoal-dim)' }}>
-            Your account:{' '}
-            <span className="mono">
-              {obligation.boundSender.slice(0, 6)}...{obligation.boundSender.slice(-4)}
-            </span>
-          </div>
+        }
+      >
+        <div className="flex items-center gap-3">
+          {statusChip}
         </div>
-
-        <div>
-          {isPaid ? (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                background: 'var(--success-bg)',
-                color: 'var(--success)',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 600,
-                fontSize: '0.92rem',
-              }}
-            >
-              <CheckCircle2 size={18} /> Receipt Confirmed
-            </div>
-          ) : (
-            <button className="btn btn-primary" onClick={onPayClick}>
-              Pay my contribution <ArrowRight size={17} />
-            </button>
-          )}
-        </div>
-      </div>
+      </Slip>
     </div>
   );
 }

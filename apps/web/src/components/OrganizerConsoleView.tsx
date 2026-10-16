@@ -4,22 +4,18 @@
 import React from 'react';
 import type { GroupSummary, OrganizerMember, InviteLinkItem } from '../lib/types';
 import {
-  Users,
-  Copy,
-  Check,
-  AlertOctagon,
-  Play,
-  Lock,
-  PlusCircle,
-  ShieldCheck,
-  CheckCircle2,
-  ExternalLink,
-} from 'lucide-react';
+  PageHeader,
+  Button,
+  Stamp,
+  Sheet,
+  ConsentControl,
+} from './ui';
 
 interface OrganizerConsoleViewProps {
   group: GroupSummary;
   members: OrganizerMember[];
   inviteLinks: InviteLinkItem[];
+  isLoading?: boolean;
   onPauseClick: () => void;
   onStartCycleClick: () => void;
   onCreateGroupClick: () => void;
@@ -29,255 +25,339 @@ export function OrganizerConsoleView({
   group,
   members,
   inviteLinks,
+  isLoading = false,
   onPauseClick,
   onStartCycleClick,
   onCreateGroupClick,
 }: OrganizerConsoleViewProps) {
   const [copiedToken, setCopiedToken] = React.useState<string | null>(null);
+  const [isPauseSheetOpen, setIsPauseSheetOpen] = React.useState(false);
+  const [isStartSheetOpen, setIsStartSheetOpen] = React.useState(false);
+  const [freezeConsent, setFreezeConsent] = React.useState(false);
 
   const copyInvite = (token: string, url: string) => {
-    navigator.clipboard.writeText(url);
+    navigator.clipboard?.writeText(url);
     setCopiedToken(token);
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
-  const readyCount = members.filter((m) => m.ready).length;
-  const allReady = readyCount >= group.memberCount;
+  const shareInvite = async (token: string, url: string) => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${group.name} on EqubFlow`,
+          text: `You are invited to join our rotating savings circle ${group.name}.`,
+          url,
+        });
+        return;
+      } catch {
+        // Fallback to copy if cancelled or rejected
+      }
+    }
+    copyInvite(token, url);
+  };
+
+  const readyMembers = members.filter((m) => m.ready);
   const isRunning = group.status === 'running' || group.status === 'paused';
+  const allSlotsFilled = members.length >= group.memberCount;
+  const allReady = allSlotsFilled && readyMembers.length === members.length;
+
+  const handleConfirmPause = () => {
+    setIsPauseSheetOpen(false);
+    onPauseClick();
+  };
+
+  const handleConfirmStart = () => {
+    if (!freezeConsent) return;
+    setIsStartSheetOpen(false);
+    onStartCycleClick();
+  };
+
+  const memberSlots = Array.from({ length: group.memberCount }, (_, i) => {
+    return members[i] || null;
+  });
 
   return (
-    <div>
-      {/* Organizer Controls Header */}
-      <div
-        className="card"
-        style={{
-          background: '#FFFFFF',
-          marginBottom: '20px',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span className="chip chip-info">Organizer Console</span>
-              <span className="chip chip-neutral">{group.status.toUpperCase()}</span>
-            </div>
-            <h2 style={{ fontSize: '1.35rem', color: 'var(--moss)' }}>
-              {group.name} Management
-            </h2>
-            <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.88rem' }}>
-              Manage member recruitment, invite links, cycle launch, and emergency pause controls.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button
+    <div className="select-none space-y-8">
+      {/* Page Header with Persistent Pause/Resume and New Circle actions */}
+      <PageHeader
+        monoLabel={`No. ${group.id.slice(0, 4)} · Organizer console`}
+        title={group.name}
+        statusSentence={
+          group.paused
+            ? 'The circle is paused. No payments will move until you resume.'
+            : isRunning
+            ? `Cycle ${group.cycleNo} is active and running.`
+            : 'Pre-cycle preparation. Invite members and verify readiness to start.'
+        }
+        action={
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onCreateGroupClick}
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: '0.84rem' }}
             >
-              <PlusCircle size={15} /> New Group
-            </button>
+              New circle
+            </Button>
 
-            {/* Large Danger / Resume Pause Switch */}
             <button
-              onClick={onPauseClick}
-              className={`btn btn-sm ${group.paused ? 'btn-primary' : 'btn-danger'}`}
-              style={{
-                fontSize: '0.85rem',
-                minWidth: '130px',
-              }}
+              type="button"
+              onClick={() => setIsPauseSheetOpen(true)}
+              className={`px-3 py-1.5 font-sans text-secondary font-semibold border rounded-sm transition-colors ${
+                group.paused
+                  ? 'border-spruce-700 text-spruce-700 hover:bg-spruce-100/50'
+                  : 'border-brick-700 text-brick-700 hover:bg-brick-100/50'
+              }`}
             >
-              {group.paused ? (
-                <>
-                  <Play size={14} /> Resume Group
-                </>
-              ) : (
-                <>
-                  <AlertOctagon size={14} /> Pause Group
-                </>
-              )}
+              {group.paused ? 'Resume the circle' : 'Pause the circle'}
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Cycle Launch & Readiness */}
-      <div className="card" style={{ background: '#FFFFFF', marginBottom: '20px' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '16px',
-            marginBottom: '16px',
-          }}
-        >
-          <div>
-            <h3 style={{ fontSize: '1.05rem', color: 'var(--moss)' }}>
-              Member Readiness ({readyCount} of {group.memberCount} Ready)
-            </h3>
-            <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.85rem' }}>
-              All {group.memberCount} members must accept the invitation and acknowledge Rule Set v{group.rulesVersion} before starting.
-            </p>
-          </div>
-
-          {!isRunning ? (
-            <button
-              onClick={onStartCycleClick}
-              className="btn btn-primary"
-              disabled={!allReady}
-            >
-              <Lock size={16} /> Start Cycle (Freeze Rules)
-            </button>
-          ) : (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                background: 'var(--success-bg)',
-                color: 'var(--success)',
-                borderRadius: 'var(--radius-full)',
-                fontWeight: 600,
-                fontSize: '0.82rem',
-              }}
-            >
-              <CheckCircle2 size={15} /> Cycle {group.cycleNo} Active · Rules Frozen
+      {/* START CYCLE SECTION (A9.3) */}
+      {!isRunning && (
+        <div className="bg-paper-1 border border-line p-5">
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <div>
+              <h3 className="font-sans text-lead font-semibold text-ink-900">
+                Start the circle
+              </h3>
+              <p className="font-sans text-secondary text-ink-500 mt-0.5">
+                {allReady
+                  ? 'All member slots are filled and accounts are ready.'
+                  : `Waiting for ${group.memberCount - readyMembers.length} member slot(s) to be joined and prepared.`}
+              </p>
             </div>
+
+            <div>
+              <Button
+                variant="primary"
+                size="md"
+                disabled={!allReady}
+                onClick={() => setIsStartSheetOpen(true)}
+              >
+                Start the circle
+              </Button>
+            </div>
+          </div>
+          {!allReady && (
+            <p className="font-sans text-meta text-ink-500 mt-2 italic">
+              All {group.memberCount} members must join, fund their wallets, and acknowledge rules before starting.
+            </p>
           )}
         </div>
+      )}
 
-        {/* Member Table */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {members.map((mem) => (
-            <div
-              key={mem.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '10px 14px',
-                background: '#FAF9F5',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                flexWrap: 'wrap',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div className="avatar">{mem.alias[0]}</div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--charcoal)' }}>
-                    {mem.alias}
-                  </div>
-                  <div className="mono" style={{ fontSize: '0.74rem', color: 'var(--charcoal-dim)' }}>
-                    {mem.walletAddress.slice(0, 6)}...{mem.walletAddress.slice(-4)}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="chip chip-neutral" style={{ textTransform: 'capitalize', fontSize: '0.74rem' }}>
-                  {mem.role}
-                </span>
-
-                <span className="chip chip-success" style={{ fontSize: '0.74rem' }}>
-                  <ShieldCheck size={12} /> Rules v{mem.acknowledgedRulesVersion} Agreed
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Invite Links Section */}
-      <div className="card" style={{ background: '#FFFFFF' }}>
-        <div style={{ marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '1.05rem', color: 'var(--moss)' }}>
-            Invitation Links
-          </h3>
-          <p style={{ color: 'var(--charcoal-muted)', fontSize: '0.85rem' }}>
-            Share unique invitation links with members. Each link requires explicit rule acknowledgement.
-          </p>
+      {/* READINESS LIST (A9.2) */}
+      <div className="bg-paper-1 border border-line p-5">
+        <div className="font-mono text-meta font-semibold text-ink-500 uppercase tracking-wider mb-3">
+          READINESS
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {inviteLinks.map((inv) => (
-            <div
-              key={inv.token}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 14px',
-                background: '#FAF9F5',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                flexWrap: 'wrap',
-                gap: '10px',
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                  <span className="mono" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--moss)' }}>
-                    {inv.token}
+        {isLoading ? (
+          <div className="space-y-3 py-2 animate-pulse">
+            {[...Array(group.memberCount)].map((_, i) => (
+              <div key={i} className="h-10 bg-paper-2" />
+            ))}
+          </div>
+        ) : (
+          <div className="divide-y divide-line border-t border-b border-line">
+            {memberSlots.map((mem, idx) => (
+              <div
+                key={idx}
+                className="py-3 flex justify-between items-center flex-wrap gap-2 text-secondary font-sans"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-meta text-ink-500 w-16">
+                    Slot {idx + 1}
                   </span>
-                  {inv.claimed ? (
-                    <span className="chip chip-success" style={{ fontSize: '0.7rem' }}>
-                      Claimed by {inv.claimedBy}
-                    </span>
+                  <span className="text-ink-900 font-semibold">
+                    {mem ? mem.alias : 'Not joined yet'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {mem ? (
+                    mem.ready ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-ink-500 text-meta">
+                          Joined · account ready
+                        </span>
+                        <Stamp text="VERIFIED" />
+                      </div>
+                    ) : (
+                      <span className="text-ochre-700 text-meta font-medium">
+                        Joined · account being prepared
+                      </span>
+                    )
                   ) : (
-                    <span className="chip chip-warning" style={{ fontSize: '0.7rem' }}>
-                      Pending Acceptance
+                    <span className="text-ink-500 text-meta">
+                      Waiting for invite
                     </span>
                   )}
                 </div>
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: '0.76rem',
-                    color: 'var(--charcoal-dim)',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {inv.url}
-                </div>
               </div>
+            ))}
 
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => copyInvite(inv.token, inv.url)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.78rem' }}
-                >
-                  {copiedToken === inv.token ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
-                  {copiedToken === inv.token ? 'Copied' : 'Copy Link'}
-                </button>
-
-                <a
-                  href={`/join/${inv.token}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.78rem' }}
-                >
-                  <ExternalLink size={13} /> Open
-                </a>
-              </div>
+            {/* Funding Status Row */}
+            <div className="py-3.5 flex justify-between items-center flex-wrap gap-2 text-secondary font-sans bg-paper-2/50 px-2">
+              <span className="text-ink-900 font-medium">Funding status</span>
+              <span className="text-meta font-mono text-ink-700">
+                Each member needs 1 USDC test money. ({readyMembers.length}/{group.memberCount} funded)
+              </span>
             </div>
-          ))}
+          </div>
+        )}
+      </div>
+
+      {/* INVITES SECTION (A9.2) */}
+      <div className="bg-paper-1 border border-line p-5">
+        <div className="font-mono text-meta font-semibold text-ink-500 uppercase tracking-wider mb-3">
+          INVITES
+        </div>
+
+        <div className="divide-y divide-line border-t border-b border-line">
+          {inviteLinks.map((inv, idx) => {
+            const isUsed = inv.claimed;
+            return (
+              <div
+                key={inv.token}
+                className="py-3 flex justify-between items-center flex-wrap gap-3 font-sans text-secondary"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-meta text-ink-500">
+                      Invite link {idx + 1}
+                    </span>
+                    <span
+                      className={`text-meta font-mono uppercase px-1.5 py-0.5 rounded-sm ${
+                        isUsed
+                          ? 'bg-paper-2 text-ink-500'
+                          : 'bg-spruce-100 text-spruce-700'
+                      }`}
+                    >
+                      {isUsed ? `Used by ${inv.claimedBy}` : 'Active'}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[12px] text-ink-500 mt-1 break-all select-all">
+                    {inv.url}
+                  </div>
+                </div>
+
+                {!isUsed && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => copyInvite(inv.token, inv.url)}
+                    >
+                      {copiedToken === inv.token ? 'Copied' : 'Copy link'}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => shareInvite(inv.token, inv.url)}
+                    >
+                      Share
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {/* PAUSE CONFIRMATION SHEET (A9.4) */}
+      <Sheet
+        isOpen={isPauseSheetOpen}
+        onClose={() => setIsPauseSheetOpen(false)}
+        title={group.paused ? 'Resume the circle' : 'Pause the circle'}
+      >
+        <div className="space-y-5">
+          <p className="font-sans text-lead font-normal text-ink-900 leading-snug">
+            {group.paused
+              ? 'Resuming enables the group to accept scheduled payments and continue rotating pot payouts.'
+              : 'No payments will move until you resume. Payments already sent are not undone.'}
+          </p>
+
+          <div className="p-3 bg-paper-2 border border-line text-meta font-mono text-ink-700">
+            {group.paused
+              ? 'Safety lock will be disengaged on Arc Testnet.'
+              : 'Safety lock will engage on Arc Testnet to fail-closed all transfers.'}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={() => setIsPauseSheetOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={group.paused ? 'primary' : 'destructive'}
+              size="md"
+              fullWidth
+              onClick={handleConfirmPause}
+            >
+              {group.paused ? 'Confirm resume' : 'Confirm pause'}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      {/* START CYCLE CONFIRMATION SHEET (A9.3) */}
+      <Sheet
+        isOpen={isStartSheetOpen}
+        onClose={() => setIsStartSheetOpen(false)}
+        title="Start the circle"
+      >
+        <div className="space-y-5">
+          <p className="font-sans text-lead font-normal text-ink-900 leading-snug">
+            Starting freezes the rules and the order. They cannot change during the cycle.
+          </p>
+
+          <div className="p-4 bg-paper-2 border border-line space-y-2">
+            <div className="font-mono text-meta font-medium text-ink-500 uppercase tracking-wider">
+              Rules fingerprint to freeze:
+            </div>
+            <div className="font-mono text-[13px] text-ink-900 break-all select-all">
+              {group.rulesHash || '3f9a72c918ae902148bf901b0849201948ba170cef'}
+            </div>
+          </div>
+
+          <ConsentControl
+            id="freeze-consent"
+            checked={freezeConsent}
+            onChange={setFreezeConsent}
+          >
+            I understand that rules and payout order will freeze permanently.
+          </ConsentControl>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={() => setIsStartSheetOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              fullWidth
+              disabled={!freezeConsent}
+              onClick={handleConfirmStart}
+            >
+              Confirm and start circle
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </div>
   );
 }

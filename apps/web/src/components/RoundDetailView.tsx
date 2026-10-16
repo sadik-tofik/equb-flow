@@ -4,20 +4,26 @@
 import React from 'react';
 import type { RoundView } from '../lib/types';
 import {
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  ExternalLink,
-  Gift,
-  HelpCircle,
-  Calendar,
-} from 'lucide-react';
+  PageHeader,
+  StatusChip,
+  MemberMonogram,
+  Slip,
+  Button,
+  Link,
+  Icon,
+} from './ui';
 
 interface RoundDetailViewProps {
   round: RoundView;
+  onNavigateToDifferences?: () => void;
+  onSelectReceipt?: (url: string, alias: string) => void;
 }
 
-export function RoundDetailView({ round }: RoundDetailViewProps) {
+export function RoundDetailView({
+  round,
+  onNavigateToDifferences,
+  onSelectReceipt,
+}: RoundDetailViewProps) {
   const formatTime = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -27,215 +33,152 @@ export function RoundDetailView({ round }: RoundDetailViewProps) {
     }
   };
 
-  const getChip = (state: string) => {
+  const getStatusChip = (state: string) => {
     switch (state) {
       case 'credited':
-        return (
-          <span className="chip chip-success">
-            <CheckCircle2 size={12} /> Confirmed
-          </span>
-        );
+        return <StatusChip status="verified" label="Paid" icon="check-stamp" />;
       case 'waiting':
-        return (
-          <span className="chip chip-info">
-            <Clock size={12} /> Waiting
-          </span>
-        );
+        return <StatusChip status="waiting" label="Waiting" icon="clock" />;
       case 'partial':
-        return (
-          <span className="chip chip-warning">
-            <AlertCircle size={12} /> Partial
-          </span>
-        );
+        return <StatusChip status="attention" label="Partial" icon="difference" />;
       case 'late':
-        return (
-          <span className="chip chip-danger">
-            <AlertCircle size={12} /> Late
-          </span>
-        );
+        return <StatusChip status="problem" label="Late 40 min" icon="error" />;
       default:
-        return (
-          <span className="chip chip-neutral">
-            <HelpCircle size={12} /> Problem
-          </span>
-        );
+        return <StatusChip status="problem" label="Problem" icon="error" />;
     }
   };
 
-  return (
-    <div>
-      {/* Round Header Summary */}
-      <div
-        className="card"
-        style={{
-          background: '#FFFFFF',
-          marginBottom: '20px',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: '16px',
-            marginBottom: '16px',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <span className="chip chip-info">
-                Round {round.roundNo}
-              </span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--charcoal-dim)' }}>
-                Status: <strong>{round.status}</strong>
-              </span>
-            </div>
-            <h2 style={{ fontSize: '1.25rem', color: 'var(--moss)', marginBottom: '4px' }}>
-              {round.statusText}
-            </h2>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '0.85rem',
-                color: 'var(--charcoal-muted)',
-              }}
-            >
-              <Gift size={15} color="var(--clay)" />
-              <span>
-                Designated Recipient: <strong>{round.recipientAlias}</strong>
-              </span>
-              <span className="mono" style={{ fontSize: '0.78rem', color: 'var(--charcoal-dim)' }}>
-                ({round.recipientWallet.slice(0, 6)}...{round.recipientWallet.slice(-4)})
-              </span>
-            </div>
-          </div>
+  const paidCount = round.contributions.filter((c) => c.state === 'credited').length;
+  const totalCount = round.contributions.length || 6;
+  const isPaidOut = round.status === 'paid';
 
-          <div style={{ textAlign: 'right' }}>
-            <div
-              style={{
-                fontSize: '0.75rem',
-                color: 'var(--charcoal-dim)',
-                textTransform: 'uppercase',
-                fontWeight: 700,
-              }}
-            >
-              Collected Pot
-            </div>
-            <div
-              className="mono"
-              style={{
-                fontSize: '1.6rem',
-                fontWeight: 800,
-                color: 'var(--moss)',
-              }}
-            >
-              {round.potDisplay}
-            </div>
+  return (
+    <div className="space-y-6 select-none">
+      {/* Page Header Pattern (Section A0 & A5) */}
+      <PageHeader
+        monoLabel={`No. 00${round.roundNo} · Round Detail`}
+        title={`Round ${round.roundNo} of 6`}
+        statusSentence={`${round.recipientAlias} receives this pot.`}
+      />
+
+      <div className="text-meta text-ink-500 font-mono -mt-4 mb-2">
+        Deadline {formatTime(round.deadlineAt)} · Grace until {formatTime(round.graceEndsAt)}
+      </div>
+
+      {/* THE POT (Section A5) */}
+      <div className="bg-paper-1 border border-line p-6">
+        <div className="flex justify-between items-baseline mb-3">
+          <div className="font-mono text-meta font-semibold uppercase text-ink-500">
+            The Pot
+          </div>
+          <div className="text-meta text-ink-500 font-mono">
+            Paid {round.potDisplay}
           </div>
         </div>
 
-        {/* Timeline details */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '16px',
-            flexWrap: 'wrap',
-            paddingTop: '12px',
-            borderTop: '1px solid var(--border-subtle)',
-            fontSize: '0.82rem',
-            color: 'var(--charcoal-dim)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Calendar size={14} />
-            <span>Regular Deadline: <strong>{formatTime(round.deadlineAt)}</strong></span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Clock size={14} />
-            <span>Grace Period Closes: <strong>{formatTime(round.graceEndsAt)}</strong></span>
-          </div>
+        <div className="font-sans text-amount font-semibold tabular text-ink-900 leading-none mb-4">
+          0.60 <span className="text-secondary text-ink-500 font-normal">USDC (when complete)</span>
+        </div>
+
+        {/* Six ruled progress segments (Section A5) */}
+        <div className="flex items-center gap-1.5 w-full">
+          {Array.from({ length: totalCount }, (_, i) => i + 1).map((s) => (
+            <div
+              key={s}
+              className={`h-[4px] flex-1 ${s <= paidCount ? 'bg-ink-900' : 'bg-paper-2'}`}
+            />
+          ))}
         </div>
       </div>
 
-      {/* Roster of contributions */}
-      <div className="card" style={{ padding: '20px' }}>
-        <h3
-          style={{
-            fontSize: '1rem',
-            color: 'var(--moss)',
-            marginBottom: '16px',
-          }}
-        >
-          Member Contribution Status
-        </h3>
+      {/* CONTRIBUTIONS (Ruled table, Section A5) */}
+      <div className="bg-paper-1 border border-line">
+        <div className="px-5 py-3.5 bg-paper-2 border-b border-line text-meta font-mono font-semibold text-ink-700 uppercase tracking-wider flex justify-between">
+          <span>Contributions</span>
+          <span className="hidden md:inline">Time</span>
+        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {round.contributions.map((c) => (
+        <div className="divide-y divide-line">
+          {round.contributions.map((c, idx) => (
             <div
               key={c.alias}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 16px',
-                background: '#FFFFFF',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                flexWrap: 'wrap',
-                gap: '12px',
-              }}
+              className="min-h-[56px] px-5 py-3 flex items-center justify-between gap-4 flex-wrap"
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="avatar">{c.alias[0]}</div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--charcoal)' }}>
-                    {c.alias}
-                  </div>
-                  <div style={{ marginTop: '2px' }}>{getChip(c.state)}</div>
-                </div>
+              <div className="flex items-center gap-3 min-w-[140px]">
+                <MemberMonogram nickname={c.alias} index={idx} />
+                <div className="hidden sm:block">{getStatusChip(c.state)}</div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div
-                  className="mono"
-                  style={{
-                    fontWeight: 600,
-                    fontSize: '0.95rem',
-                    color: 'var(--charcoal)',
-                  }}
-                >
-                  {c.display}
-                </div>
+              <div className="hidden sm:block sm:hidden">{getStatusChip(c.state)}</div>
+
+              {/* Time on desktop (Section A5) */}
+              <div className="hidden md:block font-mono text-meta text-ink-500">
+                {c.blockTime ? formatTime(c.blockTime) : '—'}
+              </div>
+
+              <div className="flex items-center gap-4">
+                <span className="font-sans text-body font-semibold tabular text-ink-900">
+                  {c.display.replace(/ \(Paid\)$/, '')}
+                </span>
 
                 {c.txUrl ? (
-                  <a
-                    href={c.txUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '0.78rem' }}
+                  <button
+                    type="button"
+                    onClick={() => onSelectReceipt?.(c.txUrl!, c.alias)}
+                    className="text-spruce-700 underline underline-offset-2 hover:text-[#104032] text-meta font-medium"
                   >
-                    Receipt <ExternalLink size={12} />
-                  </a>
+                    Open
+                  </button>
                 ) : (
-                  <span
-                    style={{
-                      fontSize: '0.78rem',
-                      color: 'var(--charcoal-dim)',
-                      minWidth: '70px',
-                      textAlign: 'right',
-                    }}
-                  >
-                    Pending
+                  <span className="text-meta text-ink-500 min-w-[40px] text-right">
+                    —
                   </span>
                 )}
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* PAYOUT (Section A5) */}
+      <div className="bg-paper-1 border border-line p-6">
+        <div className="font-mono text-meta font-semibold uppercase text-ink-500 mb-2">
+          Payout
+        </div>
+
+        {isPaidOut ? (
+          <Slip
+            slipNumber={`Payout No. R${round.roundNo}`}
+            title={`Payout to ${round.recipientAlias}`}
+            amount="0.60"
+            amountSubtext="Released after all contributions matched."
+            isStamped={true}
+            stampText="PAID"
+            actions={
+              round.payoutTxUrl && (
+                <Link href={round.payoutTxUrl} isExternal className="text-meta font-medium">
+                  Open payout receipt
+                </Link>
+              )
+            }
+          />
+        ) : (
+          <p className="text-secondary text-ink-700 leading-relaxed">
+            Not paid yet. It is released when every contribution is matched or covered.
+          </p>
+        )}
+      </div>
+
+      {/* Link to Differences in this round */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={onNavigateToDifferences}
+          className="inline-flex items-center gap-1.5 text-secondary text-spruce-700 underline underline-offset-2 hover:text-[#104032]"
+        >
+          <span>Differences in this round (0)</span>
+          <Icon name="forward-static" size={14} ariaHidden={true} />
+        </button>
       </div>
     </div>
   );

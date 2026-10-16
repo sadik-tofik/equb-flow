@@ -14,22 +14,19 @@ import type {
   OrganizerMember,
   InviteLinkItem,
 } from '../lib/types';
-import { Header } from '../components/Header';
-import { PauseBanner } from '../components/PauseBanner';
-import { GroupSummaryCard } from '../components/GroupSummaryCard';
-import { MyObligationCard } from '../components/MyObligationCard';
-import { MemberAvatarRow } from '../components/MemberAvatarRow';
+import { AppShell, NavItemKey } from '../components/AppShell';
+import { GroupHomeView } from '../components/GroupHomeView';
 import { RoundDetailView } from '../components/RoundDetailView';
 import { ApprovalInboxView } from '../components/ApprovalInboxView';
 import { DiscrepancyLedgerView } from '../components/DiscrepancyLedgerView';
 import { DecisionLogView } from '../components/DecisionLogView';
 import { OrganizerConsoleView } from '../components/OrganizerConsoleView';
+import { ReceiptsView, ReceiptItem } from '../components/ReceiptsView';
+import { SettingsView } from '../components/SettingsView';
 import { PayFlowModal } from '../components/PayFlowModal';
 import { SignInView } from '../components/SignInView';
-import { PauseSwitchModal } from '../components/PauseSwitchModal';
-import { RulesFreezeModal } from '../components/RulesFreezeModal';
 import { CreateGroupWizardModal } from '../components/CreateGroupWizardModal';
-import { Loader2 } from 'lucide-react';
+import { SlipSkeleton, Stamp, Link } from '../components/ui';
 
 export default function GroupHomePage() {
   const [user, setUser] = React.useState<UserSession | null>(null);
@@ -43,19 +40,15 @@ export default function GroupHomePage() {
   const [organizerMembers, setOrganizerMembers] = React.useState<OrganizerMember[]>([]);
   const [inviteLinks, setInviteLinks] = React.useState<InviteLinkItem[]>([]);
 
-  const [activeTab, setActiveTab] = React.useState<
-    'round' | 'approvals' | 'discrepancies' | 'decisions' | 'organizer'
-  >('round');
-
+  const [activeNav, setActiveNav] = React.useState<NavItemKey>('home');
   const [payModalOpen, setPayModalOpen] = React.useState(false);
-  const [signInOpen, setSignInOpen] = React.useState(false);
-  const [pauseModalOpen, setPauseModalOpen] = React.useState(false);
-  const [freezeModalOpen, setFreezeModalOpen] = React.useState(false);
   const [wizardModalOpen, setWizardModalOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
+  const [isRevalidating, setIsRevalidating] = React.useState(false);
 
-  const loadData = React.useCallback(async () => {
+  const loadData = React.useCallback(async (isBackground = false) => {
     try {
+      if (isBackground) setIsRevalidating(true);
       const currentUser = api.getUser();
       setUser({ ...currentUser });
 
@@ -85,27 +78,23 @@ export default function GroupHomePage() {
       console.error('Error loading group data:', err);
     } finally {
       setLoading(false);
+      setIsRevalidating(false);
     }
   }, []);
 
   React.useEffect(() => {
     loadData();
-    // Poll every 10 seconds for real-time progress per Section 4
+    // Poll every 10 seconds for real-time progress
     const interval = setInterval(() => {
-      loadData();
+      loadData(true);
     }, 10000);
     return () => clearInterval(interval);
   }, [loadData]);
 
-  const handleRefreshAuth = () => {
+  const handleSignInSuccess = (_email: string) => {
     api.refreshSignIn();
     const updated = api.getUser();
     setUser({ ...updated });
-  };
-
-  const handleSignInSuccess = (email: string) => {
-    handleRefreshAuth();
-    setSignInOpen(false);
   };
 
   const handleTogglePause = async (reason?: string) => {
@@ -123,162 +112,233 @@ export default function GroupHomePage() {
   const handleGroupCreated = async (newGroup: GroupSummary) => {
     setGroup({ ...newGroup });
     await loadData();
-    setActiveTab('organizer');
+    setActiveNav('organizer');
   };
-
-  if (loading || !user || !group || !obligation || !round) {
-    return (
-      <div className="container" style={{ textAlign: 'center', paddingTop: '100px' }}>
-        <Loader2 size={36} className="spin" color="var(--moss)" />
-        <p style={{ marginTop: '16px', color: 'var(--charcoal-muted)' }}>
-          Loading EqubFlow dashboard...
-        </p>
-      </div>
-    );
-  }
 
   const awaitingApprovalsCount = proposals.filter(
     (p) => p.status === 'awaiting_approval'
   ).length;
 
-  const openDiscrepanciesCount = discrepancies.filter(
-    (d) => d.status === 'open' || d.status === 'proposed'
-  ).length;
+  // Signed out state -> Section A1 Sign in view
+  if (!user && !loading) {
+    return (
+      <div className="min-h-screen bg-paper-0 flex flex-col justify-center px-4 py-8">
+        <SignInView onSignInSuccess={handleSignInSuccess} />
+      </div>
+    );
+  }
+
+  // Loading skeleton state
+  if (loading || !user || !group || !obligation || !round) {
+    return (
+      <div className="min-h-screen bg-paper-0 max-w-[480px] mx-auto px-5 pt-20">
+        <div className="masthead-rule mb-6" />
+        <div className="text-center mb-6">
+          <div className="font-mono text-meta font-medium text-ink-500 uppercase tracking-wider mb-2">
+            EqubFlow
+          </div>
+          <p className="text-secondary text-ink-700">Loading circle ledger...</p>
+        </div>
+        <SlipSkeleton />
+      </div>
+    );
+  }
+
+  // Build receipts list for user
+  const receiptsList: ReceiptItem[] = [
+    {
+      id: 'rcpt-r1-contrib',
+      roundNumber: 1,
+      date: 'Oct 16, 9:00 PM',
+      kind: 'contribution',
+      amountDisplay: obligation.display,
+      isConfirmed: obligation.state === 'paid',
+      txHash: '0x4b1c77ae9801beef42',
+      txUrl: 'https://testnet.arcscan.io/tx/0x4b1c77ae9801beef42',
+    },
+    {
+      id: 'rcpt-r0-payout',
+      roundNumber: 0,
+      date: 'Oct 12, 9:02 PM',
+      kind: 'payout',
+      amountDisplay: round.potDisplay.replace(/ \/ .*$/, ' USDC'),
+      isConfirmed: true,
+      txHash: '0xa3f912c98401beef42',
+      txUrl: 'https://testnet.arcscan.io/tx/0xa3f912c98401beef42',
+    },
+  ];
+
+  // Right column contextual explanation (never decoration, Section A0)
+  const renderRightColumn = () => {
+    switch (activeNav) {
+      case 'home':
+      case 'rounds':
+        return (
+          <div className="space-y-6">
+            <div>
+              <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-2">
+                Why this deadline?
+              </div>
+              <p className="text-secondary text-ink-700 leading-relaxed mb-3">
+                Deadlines use Arc Testnet block timestamps. If a contribution arrives within the 2-hour grace period, it may be accepted by consensus.
+              </p>
+            </div>
+
+            <div className="border-t border-line pt-4">
+              <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-2">
+                Latest confirmed receipt
+              </div>
+              <div className="p-3 bg-paper-1 border border-line space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono text-meta text-ink-500">Round 1</span>
+                  <Stamp text="PAID" />
+                </div>
+                <div className="font-sans text-[20px] font-semibold tabular text-ink-900">
+                  {obligation.display}
+                </div>
+                <div className="font-mono text-[11px] text-ink-500 break-all">
+                  Ref: 0x4b1c…77ae
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-line pt-4 text-meta text-ink-500">
+              <Link href="/audit/grp-alpha-001" isExternal className="text-spruce-700 underline">
+                Open public audit view &gt;&gt;
+              </Link>
+            </div>
+          </div>
+        );
+
+      case 'inbox':
+        return (
+          <div className="space-y-4">
+            <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+              Why human approvals?
+            </div>
+            <p className="text-secondary text-ink-700 leading-relaxed">
+              EqubFlow pairs an AI assistant that analyzes discrepancies with a deterministic safety gate. Model recommendations never move funds without rule verification and group consensus.
+            </p>
+            <div className="p-3 bg-paper-2 border border-line text-meta text-ink-700 font-mono">
+              Consensus requirement: 2 approvals
+            </div>
+          </div>
+        );
+
+      case 'differences':
+        return (
+          <div className="space-y-4">
+            <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+              Zero Rounding Policy
+            </div>
+            <p className="text-secondary text-ink-700 leading-relaxed">
+              Every difference is recorded to the exact 6-decimal USDC base unit. Differences are never rounded away or absorbed into fee margins.
+            </p>
+          </div>
+        );
+
+      case 'record':
+        return (
+          <div className="space-y-4">
+            <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+              Cryptographic Tamper-Evidence
+            </div>
+            <p className="text-secondary text-ink-700 leading-relaxed">
+              Every record entry contains the SHA-256 hash of the preceding entry. Modifying any historical row breaks the cryptographic chain for all subsequent entries.
+            </p>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="space-y-4">
+            <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
+              Safety Architecture
+            </div>
+            <p className="text-secondary text-ink-700 leading-relaxed">
+              Built for Tameion Agents Hackathon on Arc Testnet. Funds are held in a deterministic safety gate.
+            </p>
+          </div>
+        );
+    }
+  };
 
   return (
-    <div>
-      {/* Persistent Pause Banner */}
-      <PauseBanner
-        paused={group.paused}
-        onResumeClick={() => setPauseModalOpen(true)}
-        canResume={user.role === 'organizer'}
-      />
-
-      <Header
+    <>
+      <AppShell
         user={user}
         group={group}
-        onRefreshAuth={() => setSignInOpen(true)}
-      />
+        activeNav={activeNav}
+        onNavigate={(nav) => setActiveNav(nav)}
+        inboxBadgeCount={awaitingApprovalsCount}
+        rightColumnContent={renderRightColumn()}
+        isRevalidating={isRevalidating}
+      >
+        {activeNav === 'home' && (
+          <GroupHomeView
+            user={user}
+            group={group}
+            obligation={obligation}
+            round={round}
+            nextActionText={nextActionText}
+            onPayClick={() => setPayModalOpen(true)}
+            onNavigate={(v) => setActiveNav(v as NavItemKey)}
+          />
+        )}
 
-      <main className="container" style={{ paddingTop: '24px', paddingBottom: '60px' }}>
-        {/* Hero Card */}
-        <GroupSummaryCard group={group} />
+        {activeNav === 'rounds' && (
+          <RoundDetailView
+            round={round}
+            onNavigateToDifferences={() => setActiveNav('differences')}
+          />
+        )}
 
-        {/* What's Next For You */}
-        <MyObligationCard
-          obligation={obligation}
-          nextActionText={nextActionText}
-          onPayClick={() => setPayModalOpen(true)}
-        />
-
-        {/* Member Avatar Row */}
-        <MemberAvatarRow contributions={round.contributions} />
-
-        {/* Navigation Tabs */}
-        <div className="tabs-nav" role="tablist">
-          <button
-            role="tab"
-            aria-selected={activeTab === 'round'}
-            className={`tab-btn ${activeTab === 'round' ? 'active' : ''}`}
-            onClick={() => setActiveTab('round')}
-          >
-            Round Details
-          </button>
-
-          <button
-            role="tab"
-            aria-selected={activeTab === 'approvals'}
-            className={`tab-btn ${activeTab === 'approvals' ? 'active' : ''}`}
-            onClick={() => setActiveTab('approvals')}
-          >
-            Approvals
-            {awaitingApprovalsCount > 0 && (
-              <span
-                style={{
-                  background: 'var(--clay)',
-                  color: '#FFFFFF',
-                  padding: '1px 6px',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: '0.72rem',
-                  marginLeft: '6px',
-                }}
-              >
-                {awaitingApprovalsCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            role="tab"
-            aria-selected={activeTab === 'discrepancies'}
-            className={`tab-btn ${activeTab === 'discrepancies' ? 'active' : ''}`}
-            onClick={() => setActiveTab('discrepancies')}
-          >
-            Something Doesn&apos;t Add Up
-            {openDiscrepanciesCount > 0 && (
-              <span
-                style={{
-                  background: 'var(--warning)',
-                  color: '#FFFFFF',
-                  padding: '1px 6px',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: '0.72rem',
-                  marginLeft: '6px',
-                }}
-              >
-                {openDiscrepanciesCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            role="tab"
-            aria-selected={activeTab === 'decisions'}
-            className={`tab-btn ${activeTab === 'decisions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('decisions')}
-          >
-            Decision Log
-          </button>
-
-          {user.role === 'organizer' && (
-            <button
-              role="tab"
-              aria-selected={activeTab === 'organizer'}
-              className={`tab-btn ${activeTab === 'organizer' ? 'active' : ''}`}
-              onClick={() => setActiveTab('organizer')}
-            >
-              Organizer Console
-            </button>
-          )}
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === 'round' && <RoundDetailView round={round} />}
-        {activeTab === 'approvals' && (
+        {activeNav === 'inbox' && (
           <ApprovalInboxView
             proposals={proposals}
             onProposalUpdated={loadData}
           />
         )}
-        {activeTab === 'discrepancies' && (
-          <DiscrepancyLedgerView discrepancies={discrepancies} />
+
+        {activeNav === 'differences' && (
+          <DiscrepancyLedgerView
+            discrepancies={discrepancies}
+            onNavigateToInbox={() => setActiveNav('inbox')}
+          />
         )}
-        {activeTab === 'decisions' && (
+
+        {activeNav === 'record' && (
           <DecisionLogView decisions={decisions} />
         )}
-        {activeTab === 'organizer' && (
+
+        {activeNav === 'organizer' && (
           <OrganizerConsoleView
             group={group}
             members={organizerMembers}
             inviteLinks={inviteLinks}
-            onPauseClick={() => setPauseModalOpen(true)}
-            onStartCycleClick={() => setFreezeModalOpen(true)}
+            onPauseClick={() => handleTogglePause()}
+            onStartCycleClick={() => handleStartCycle()}
             onCreateGroupClick={() => setWizardModalOpen(true)}
           />
         )}
-      </main>
 
-      {/* Pay Flow Modal */}
+        {activeNav === 'receipts' && (
+          <ReceiptsView
+            receipts={receiptsList}
+            currentRoundNumber={round.roundNo}
+          />
+        )}
+
+        {activeNav === 'settings' && (
+          <SettingsView
+            user={user}
+            isCycleStarted={group.status === 'running'}
+            onSignOut={() => setUser(null)}
+          />
+        )}
+      </AppShell>
+
+      {/* Pay Flow Modal (A4) */}
       <PayFlowModal
         obligation={obligation}
         user={user}
@@ -289,40 +349,12 @@ export default function GroupHomePage() {
         }}
       />
 
-      {/* Sign In Modal */}
-      {signInOpen && (
-        <div className="modal-overlay" onClick={() => setSignInOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0 }}>
-            <SignInView
-              onSignInSuccess={handleSignInSuccess}
-              onCancel={() => setSignInOpen(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Pause Switch Modal */}
-      <PauseSwitchModal
-        isOpen={pauseModalOpen}
-        isPaused={group.paused}
-        onClose={() => setPauseModalOpen(false)}
-        onConfirm={handleTogglePause}
-      />
-
-      {/* Rules Freeze & Start Cycle Modal */}
-      <RulesFreezeModal
-        isOpen={freezeModalOpen}
-        group={group}
-        onClose={() => setFreezeModalOpen(false)}
-        onConfirm={handleStartCycle}
-      />
-
-      {/* Create Group Wizard Modal */}
+      {/* Create Group Wizard Modal (A9.1) */}
       <CreateGroupWizardModal
         isOpen={wizardModalOpen}
         onClose={() => setWizardModalOpen(false)}
         onCreated={handleGroupCreated}
       />
-    </div>
+    </>
   );
 }
