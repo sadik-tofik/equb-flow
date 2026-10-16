@@ -26,7 +26,7 @@ import { SettingsView } from '../../components/SettingsView';
 import { PayFlowModal } from '../../components/PayFlowModal';
 import { SignInView } from '../../components/SignInView';
 import { CreateGroupWizardModal } from '../../components/CreateGroupWizardModal';
-import { SlipSkeleton, Stamp, Link } from '../../components/ui';
+import { SlipSkeleton, Stamp, Link, Sheet, TextInput, Button } from '../../components/ui';
 import { useLocale } from '../../lib/i18n';
 import { rightColumnTranslations } from '../../lib/translations';
 
@@ -48,39 +48,75 @@ export default function GroupHomePage() {
   const [activeNav, setActiveNav] = React.useState<NavItemKey>('home');
   const [payModalOpen, setPayModalOpen] = React.useState(false);
   const [wizardModalOpen, setWizardModalOpen] = React.useState(false);
+  const [onboardingOpen, setOnboardingOpen] = React.useState(false);
+  const [nicknameInput, setNicknameInput] = React.useState('');
+  const [savingNickname, setSavingNickname] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [isRevalidating, setIsRevalidating] = React.useState(false);
 
   const loadData = React.useCallback(async (isBackground = false) => {
     try {
       if (isBackground) setIsRevalidating(true);
-      const currentUser = api.getUser();
-      setUser({ ...currentUser });
 
-      const groupRes = await api.getGroup('grp-alpha-001');
+      // 1. Check real authentication session
+      const sessionRes = await fetch('/api/auth/session').catch(() => null);
+      if (!sessionRes || !sessionRes.ok) {
+        setUser(null);
+        setLoading(false);
+        setIsRevalidating(false);
+        return;
+      }
+
+      const sessionJson = await sessionRes.json().catch(() => ({}));
+      const sessionUser = sessionJson.data?.user || sessionJson.user;
+      if (!sessionUser || !sessionUser.userId) {
+        setUser(null);
+        setLoading(false);
+        setIsRevalidating(false);
+        return;
+      }
+
+      // Check if user has an alias
+      if (!sessionUser.alias || sessionUser.alias === 'You') {
+        setOnboardingOpen(true);
+      }
+
+      const userSession: UserSession = {
+        userId: sessionUser.userId,
+        alias: sessionUser.alias || 'Member',
+        walletAddress: sessionUser.walletAddress || '0xeb21103e749d682c3f0e36a23852f246b1b4d016',
+        role: sessionUser.role || 'member',
+        groupId: sessionUser.groupId || 'grp-alpha-001',
+        lastSignInAt: sessionUser.lastSignInAt || new Date().toISOString(),
+      };
+      setUser(userSession);
+
+      const targetGroupId = sessionUser.groupId || 'grp-alpha-001';
+      const groupRes = await api.getGroup(targetGroupId);
       setGroup({ ...groupRes.group });
       setObligation({ ...groupRes.myObligation });
       setNextActionText(groupRes.nextActionText);
 
-      const roundRes = await api.getRound('grp-alpha-001', 1);
+      const roundRes = await api.getRound(targetGroupId, 1);
       setRound({ ...roundRes });
 
-      const propRes = await api.getProposals('grp-alpha-001');
+      const propRes = await api.getProposals(targetGroupId);
       setProposals([...propRes]);
 
-      const discRes = await api.getDiscrepancies('grp-alpha-001');
+      const discRes = await api.getDiscrepancies(targetGroupId);
       setDiscrepancies([...discRes]);
 
-      const decRes = await api.getDecisions('grp-alpha-001');
+      const decRes = await api.getDecisions(targetGroupId);
       setDecisions([...decRes]);
 
-      const mems = await api.getOrganizerMembers('grp-alpha-001');
+      const mems = await api.getOrganizerMembers(targetGroupId);
       setOrganizerMembers([...mems]);
 
-      const invites = await api.getInviteLinks('grp-alpha-001');
+      const invites = await api.getInviteLinks(targetGroupId);
       setInviteLinks([...invites]);
     } catch (err) {
-      console.error('Error loading group data:', err);
+      console.error('Error loading session or group data:', err);
+      setUser(null);
     } finally {
       setLoading(false);
       setIsRevalidating(false);
@@ -89,17 +125,35 @@ export default function GroupHomePage() {
 
   React.useEffect(() => {
     loadData();
-    // Poll every 10 seconds for real-time progress
+    // Poll every 15 seconds for real-time progress
     const interval = setInterval(() => {
       loadData(true);
-    }, 10000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [loadData]);
 
-  const handleSignInSuccess = (_email: string) => {
-    api.refreshSignIn();
-    const updated = api.getUser();
-    setUser({ ...updated });
+  const handleSignInSuccess = async (_email: string) => {
+    setLoading(true);
+    await loadData();
+  };
+
+  const handleSaveNickname = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nicknameInput.trim()) return;
+    setSavingNickname(true);
+    try {
+      await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alias: nicknameInput.trim() }),
+      });
+      setUser((prev) => (prev ? { ...prev, alias: nicknameInput.trim() } : null));
+      setOnboardingOpen(false);
+    } catch (err) {
+      console.error('Failed to save nickname:', err);
+    } finally {
+      setSavingNickname(false);
+    }
   };
 
   const handleTogglePause = async (reason?: string) => {
@@ -338,10 +392,49 @@ export default function GroupHomePage() {
           <SettingsView
             user={user}
             isCycleStarted={group.status === 'running'}
-            onSignOut={() => setUser(null)}
+            onSignOut={async () => {
+              await fetch('/api/auth/sign-out', { method: 'POST' }).catch(() => {});
+              setUser(null);
+            }}
           />
         )}
       </AppShell>
+
+      {/* Choose Nickname Onboarding Modal */}
+      <Sheet
+        isOpen={onboardingOpen}
+        onClose={() => {}}
+        title={locale === 'am' ? 'የእርስዎን ቅጽል ስም ይምረጡ' : locale === 'om' ? 'Maqaa Masoo Filadhaa' : 'Choose your nickname'}
+      >
+        <form onSubmit={handleSaveNickname} className="space-y-5 pt-3 select-none">
+          <p className="text-secondary text-ink-700 leading-relaxed">
+            {locale === 'am'
+              ? 'ይህ ቅጽል ስም በዕቁቡ አባላት ዘንድ ክፍያዎችዎን፣ ድምጽዎን እና የዕጣ ተራዎን ለመለየት ይጠቅማል።'
+              : locale === 'om'
+              ? 'Maqaan kun miseensota iqubii biratti kaffaltii fi sagalee keessan adda baasuuf gargaara.'
+              : 'This nickname will identify your contributions, votes, and payout slot to other circle members.'}
+          </p>
+
+          <TextInput
+            id="user-nickname"
+            label={locale === 'am' ? 'ቅጽል ስም / መጠሪያ' : locale === 'om' ? 'Maqaa Masoo' : 'Nickname / Alias'}
+            value={nicknameInput}
+            onChange={(e) => setNicknameInput(e.target.value)}
+            placeholder={locale === 'am' ? 'ለምሳሌ፡ ዳዊት ወይም አበበ ጫማ' : locale === 'om' ? 'Fkn: Dawit ykn Abebe' : 'e.g. Dawit, Abebe, or ShoesCustomer'}
+            required
+          />
+
+          <Button
+            type="submit"
+            variant="primary"
+            fullWidth
+            loading={savingNickname}
+            disabled={!nicknameInput.trim() || savingNickname}
+          >
+            {locale === 'am' ? 'አስቀምጥና ወደ ዕቁቡ ግባ' : locale === 'om' ? 'Galmeessiitii Seeni' : 'Save and enter circle'}
+          </Button>
+        </form>
+      </Sheet>
 
       {/* Pay Flow Modal (A4) */}
       <PayFlowModal

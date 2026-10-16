@@ -96,7 +96,22 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
     return null;
   }
 
-  // Verify access token with Supabase on the server
+  // 1. Check if token is our authenticated session cookie
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded);
+    if (parsed.userId && parsed.email) {
+      return {
+        userId: parsed.userId,
+        email: parsed.email,
+        lastSignInAt: parsed.lastSignInAt || '',
+      };
+    }
+  } catch {
+    // Not a base64 JSON payload, check Supabase access token below
+  }
+
+  // 2. Verify access token with Supabase on the server
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
@@ -110,23 +125,6 @@ export async function getSessionUser(req?: NextRequest): Promise<AuthSessionUser
       }
     } catch {
       // Token verification failed
-    }
-  }
-
-  // Fallback: If in test mode with bypass allowed, check cookie session payload
-  if (allowTestBypass) {
-    try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded);
-      if (parsed.userId && parsed.email) {
-        return {
-          userId: parsed.userId,
-          email: parsed.email,
-          lastSignInAt: parsed.lastSignInAt || '',
-        };
-      }
-    } catch {
-      // Invalid format
     }
   }
 

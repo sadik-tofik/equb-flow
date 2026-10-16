@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         userId: sessionUser.userId,
         email: sessionUser.email,
         lastSignInAt: sessionUser.lastSignInAt,
-        alias: member?.alias || 'You',
+        alias: member?.alias || null,
         role: member?.role || 'member',
         groupId: member?.group_id || null,
         groupName: member?.group_name || null,
@@ -41,8 +41,11 @@ export async function GET(req: NextRequest) {
         userId: sessionUser.userId,
         email: sessionUser.email,
         lastSignInAt: sessionUser.lastSignInAt,
-        alias: 'You',
+        alias: null,
         role: 'member',
+        groupId: null,
+        groupName: null,
+        walletAddress: null,
       },
     });
   }

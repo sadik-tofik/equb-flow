@@ -92,16 +92,12 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error?.message || data.message || t('auth.code_wrong', undefined, language));
+        setError(data.error?.message || data.message || t('auth.code_wrong', undefined, language));
+        return;
       }
       onSignInSuccess(email);
     } catch (err: any) {
-      if (err?.message && (err.message.includes('Invalid') || err.message.includes('expired') || err.message.includes('Too many'))) {
-        setError(err.message);
-      } else {
-        // Fallback for demo
-        onSignInSuccess(email);
-      }
+      setError(err?.message || t('auth.code_wrong', undefined, language));
     } finally {
       setLoading(false);
     }

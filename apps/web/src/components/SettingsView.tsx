@@ -127,6 +127,27 @@ export function SettingsView({
   const [dataSheet, setDataSheet] = React.useState<'download' | 'delete' | null>(null);
   const [contactEmail, setContactEmail] = React.useState('');
   const [dataRequestSent, setDataRequestSent] = React.useState(false);
+  const [faucetLoading, setFaucetLoading] = React.useState(false);
+  const [faucetReceipt, setFaucetReceipt] = React.useState<{ txUrl: string; message: string } | null>(null);
+
+  const handleClaimFaucet = async () => {
+    setFaucetLoading(true);
+    setFaucetReceipt(null);
+    try {
+      const res = await fetch('/api/faucet', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.data) {
+        setFaucetReceipt({
+          txUrl: data.data.txUrl,
+          message: data.data.message || '1.00 test USDC credited to your Arc Testnet wallet.',
+        });
+      }
+    } catch (err) {
+      console.error('Faucet claim error:', err);
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
 
   const handleSaveNickname = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,6 +226,53 @@ export function SettingsView({
             </div>
           )}
         </form>
+      </div>
+
+      {/* Testnet Faucet & Wallet Funding */}
+      <div className="bg-paper-1 border border-line p-5 space-y-4">
+        <div>
+          <h3 className="font-sans text-lead font-semibold text-ink-900 mb-1">
+            {locale === 'am' ? 'የሙከራ ገንዘብ (Testnet Faucet)' : locale === 'om' ? 'Qarshii Yaalii (Testnet Faucet)' : 'Testnet Faucet & Wallet'}
+          </h3>
+          <p className="font-sans text-secondary text-ink-700">
+            {locale === 'am'
+              ? 'በArc Testnet ላይ በዕቁቡ ለመሳተፍ 1.00 የሙከራ USDC ወደ ኪስ ቦርሳዎ ይውሰዱ።'
+              : locale === 'om'
+              ? 'Iqubii keessatti hirmaachuuf 1.00 USDC yaalii boorsaa Arc Testnet keessaniitti fudhadhaa.'
+              : 'Claim 1.00 test USDC on Arc Testnet to fund your circle contributions and test transactions.'}
+          </p>
+        </div>
+
+        <div className="p-3 bg-paper-0 border border-line font-mono text-meta space-y-1">
+          <div className="text-ink-500 uppercase">{c.walletLabel}</div>
+          <div className="text-ink-900 font-semibold break-all">{user.walletAddress}</div>
+          <div className="text-spruce-700 font-sans pt-1 font-medium">Network: Arc Testnet (Chain ID 5042002) · USDC: 0x3600...0000</div>
+        </div>
+
+        <div>
+          <Button
+            variant="primary"
+            size="sm"
+            loading={faucetLoading}
+            onClick={handleClaimFaucet}
+          >
+            {locale === 'am' ? '1.00 የሙከራ USDC ውሰድ' : locale === 'om' ? '1.00 USDC Yaalii Fudhadhaa' : 'Claim 1.00 test USDC'}
+          </Button>
+        </div>
+
+        {faucetReceipt && (
+          <div className="p-3 bg-spruce-100 border border-spruce-700/30 text-spruce-700 font-sans text-secondary space-y-1">
+            <div className="font-semibold">{faucetReceipt.message}</div>
+            <a
+              href={faucetReceipt.txUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-meta underline block text-spruce-700 hover:text-[#104032]"
+            >
+              {locale === 'am' ? 'ዝውውሩን በArcScan ላይ ይመልከቱ >>' : locale === 'om' ? 'Sochii ArcScan irratti ilaalaa >>' : 'View transfer on ArcScan >>'}
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Language */}
