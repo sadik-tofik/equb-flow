@@ -12,6 +12,7 @@ import {
   Icon,
   IconName,
 } from './ui';
+import { t } from '../lib/i18n';
 
 export type NavItemKey =
   | 'home'
@@ -69,45 +70,45 @@ export function AppShell({
   if (group.paused) {
     banners.push({
       type: 'paused',
-      message: 'The organizer paused this circle. No payments will move until it resumes.',
+      message: t('banner.paused'),
     });
   }
   if (isOffline) {
     banners.push({
       type: 'offline',
-      message: 'You are offline. What you see may be out of date.',
+      message: t('banner.offline'),
     });
   }
   if (group.mode === 'simulated' && banners.length < 2) {
     banners.push({
       type: 'simulated',
-      message: 'Simulated. Not real participants.',
+      message: t('badge.simulated'),
     });
   }
   if (group.accelerated && banners.length < 2) {
     banners.push({
       type: 'accelerated',
-      message: `Rounds are sped up for this demo. (${group.cadenceText})`,
+      message: `${t('badge.accelerated')} (${group.cadenceText})`,
     });
   }
 
   const primaryNavItems: { key: NavItemKey; label: string; icon: IconName; badge?: number }[] = [
-    { key: 'home', label: 'Home', icon: 'home' },
-    { key: 'rounds', label: 'Rounds', icon: 'rounds' },
-    { key: 'inbox', label: 'Inbox', icon: 'inbox', badge: inboxBadgeCount },
-    { key: 'record', label: 'Record', icon: 'record' },
+    { key: 'home', label: t('nav.home'), icon: 'home' },
+    { key: 'rounds', label: t('nav.rounds'), icon: 'rounds' },
+    { key: 'inbox', label: t('nav.inbox'), icon: 'inbox', badge: inboxBadgeCount },
+    { key: 'record', label: t('nav.record'), icon: 'record' },
   ];
 
   const desktopNavItems: { key: NavItemKey; label: string; icon: IconName; badge?: number }[] = [
     ...primaryNavItems,
-    { key: 'differences', label: 'Differences', icon: 'difference' },
-    { key: 'receipts', label: 'Receipts', icon: 'receipt' },
+    { key: 'differences', label: t('nav.differences'), icon: 'difference' },
+    { key: 'receipts', label: t('nav.receipts'), icon: 'receipt' },
   ];
 
   if (user.role === 'organizer') {
-    desktopNavItems.push({ key: 'organizer', label: 'Organizer', icon: 'lock' });
+    desktopNavItems.push({ key: 'organizer', label: t('nav.organizer'), icon: 'lock' });
   }
-  desktopNavItems.push({ key: 'settings', label: 'Settings', icon: 'refresh' });
+  desktopNavItems.push({ key: 'settings', label: t('nav.settings'), icon: 'refresh' });
 
   return (
     <div className="min-h-screen bg-paper-0 flex flex-col font-sans text-ink-900 selection:bg-spruce-100 selection:text-spruce-700">

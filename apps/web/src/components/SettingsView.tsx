@@ -4,6 +4,7 @@
 import React from 'react';
 import type { UserSession } from '../lib/types';
 import { PageHeader, Button, TextInput, Sheet, Icon } from './ui';
+import { getLocale, setGlobalLocale, type Locale } from '../lib/i18n';
 
 interface SettingsViewProps {
   user: UserSession;
@@ -21,7 +22,11 @@ export function SettingsView({
   const [nickname, setNickname] = React.useState(user.alias);
   const [savingNickname, setSavingNickname] = React.useState(false);
   const [nicknameSuccess, setNicknameSuccess] = React.useState(false);
-  const [selectedLanguage, setSelectedLanguage] = React.useState<'en' | 'am' | 'om'>('en');
+  const [selectedLanguage, setSelectedLanguage] = React.useState<Locale>('en');
+
+  React.useEffect(() => {
+    setSelectedLanguage(getLocale());
+  }, []);
 
   const [dataSheet, setDataSheet] = React.useState<'download' | 'delete' | null>(null);
   const [contactEmail, setContactEmail] = React.useState('');
@@ -126,7 +131,10 @@ export function SettingsView({
             <button
               key={lang.id}
               type="button"
-              onClick={() => setSelectedLanguage(lang.id)}
+              onClick={() => {
+                setSelectedLanguage(lang.id);
+                setGlobalLocale(lang.id);
+              }}
               className={`p-3 text-left border transition-colors ${
                 selectedLanguage === lang.id
                   ? 'border-ink-900 bg-ink-900 text-paper-0 font-semibold'

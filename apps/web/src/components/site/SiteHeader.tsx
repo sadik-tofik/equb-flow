@@ -3,9 +3,15 @@
 
 import React from 'react';
 import { Wordmark, Button, Icon, Sheet, Link } from '../ui';
+import { getLocale, setGlobalLocale, type Locale } from '../../lib/i18n';
 
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [currentLocale, setCurrentLocale] = React.useState<Locale>('en');
+
+  React.useEffect(() => {
+    setCurrentLocale(getLocale());
+  }, []);
 
   const navLinks = [
     { label: 'How it works', href: '/how-it-works' },
@@ -38,6 +44,34 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Quick Language Toggle */}
+          <div className="hidden lg:flex items-center gap-1 text-meta text-ink-500 mr-1" aria-label="Language">
+            {(
+              [
+                { id: 'en', label: 'EN', title: 'English' },
+                { id: 'am', label: 'አማ', title: 'አማርኛ' },
+                { id: 'om', label: 'OM', title: 'Afaan Oromoo' },
+              ] as const
+            ).map((loc) => (
+              <button
+                key={loc.id}
+                type="button"
+                onClick={() => {
+                  setCurrentLocale(loc.id);
+                  setGlobalLocale(loc.id);
+                }}
+                className={`px-1.5 py-0.5 text-[11px] font-mono rounded-sm transition-colors ${
+                  currentLocale === loc.id
+                    ? 'font-bold text-ink-900 bg-paper-2 border border-line'
+                    : 'text-ink-500 hover:text-ink-900'
+                }`}
+                title={loc.title}
+              >
+                {loc.label}
+              </button>
+            ))}
+          </div>
+
           <Link
             href="/sandbox"
             className="hidden sm:inline-flex items-center justify-center px-4 py-2 bg-spruce-700 text-paper-1 text-secondary font-medium hover:bg-[#104032] transition-colors rounded-sm"

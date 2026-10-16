@@ -10,6 +10,7 @@ import {
   Link,
   Banner,
 } from './ui';
+import { t, setGlobalLocale, getLocale, Locale } from '../lib/i18n';
 
 interface SignInViewProps {
   onSignInSuccess: (email: string) => void;
@@ -24,7 +25,11 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
   const [loading, setLoading] = React.useState(false);
   const [countdown, setCountdown] = React.useState(42);
   const [rateLimitedMinutes, setRateLimitedMinutes] = React.useState<number | null>(null);
-  const [language, setLanguage] = React.useState<'en' | 'am' | 'om'>('en');
+  const [language, setLanguage] = React.useState<Locale>('en');
+
+  React.useEffect(() => {
+    setLanguage(getLocale());
+  }, []);
 
   React.useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -93,12 +98,18 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
           </span>
         </div>
         <h1 className="font-display text-h2 font-medium text-ink-900 leading-tight">
-          {codeSent ? 'Check your email' : 'Sign in'}
+          {codeSent
+            ? language === 'am'
+              ? 'ኢሜይልዎን ይመልከቱ'
+              : language === 'om'
+              ? 'Imeelii keessan ilaalaa'
+              : 'Check your email'
+            : t('auth.sign_in', undefined, language)}
         </h1>
         <p className="font-sans text-lead font-normal text-ink-900 leading-snug mt-2 text-balance">
           {codeSent
-            ? `We sent a 6-digit code to ${email}. It works for 10 minutes.`
-            : 'We will email you a 6-digit code.'}
+            ? t('auth.code_sent', { email }, language)
+            : t('auth.email_helper', undefined, language)}
         </p>
       </div>
 
@@ -108,14 +119,20 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
         <form onSubmit={handleSendCode} className="space-y-5">
           <TextInput
             id="signin-email"
-            label="Email address"
+            label={t('auth.email_label', undefined, language)}
             type="email"
             autoComplete="email"
             inputMode="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@example.com"
-            helperText="Use the email address your organizer has."
+            helperText={
+              language === 'am'
+                ? 'አስተባባሪዎ የተጠቀመበትን የኢሜይል አድራሻ ይጠቀሙ።'
+                : language === 'om'
+                ? 'Teessoo imeelii qindeessaan keessan qabu fayyadamaa.'
+                : 'Use the email address your organizer has.'
+            }
             error={error || undefined}
             disabled={Boolean(rateLimitedMinutes)}
             required
@@ -128,16 +145,21 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
             loading={loading}
             disabled={Boolean(rateLimitedMinutes)}
           >
-            Send my code
+            {t('auth.send_code', undefined, language)}
           </Button>
 
           {/* Language selector (Section A1) */}
           <div className="pt-4 border-t border-line flex items-center justify-between text-meta text-ink-500">
-            <span>Language:</span>
+            <span>
+              {language === 'am' ? 'ቋንቋ:' : language === 'om' ? 'Afaan:' : 'Language:'}
+            </span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setLanguage('en')}
+                onClick={() => {
+                  setLanguage('en');
+                  setGlobalLocale('en');
+                }}
                 className={`underline underline-offset-2 ${
                   language === 'en' ? 'font-semibold text-ink-900' : 'text-ink-500 hover:text-ink-700'
                 }`}
@@ -147,7 +169,10 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
               <span>|</span>
               <button
                 type="button"
-                onClick={() => setLanguage('am')}
+                onClick={() => {
+                  setLanguage('am');
+                  setGlobalLocale('am');
+                }}
                 className={`underline underline-offset-2 ${
                   language === 'am' ? 'font-semibold text-ink-900' : 'text-ink-500 hover:text-ink-700'
                 }`}
@@ -157,7 +182,10 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
               <span>|</span>
               <button
                 type="button"
-                onClick={() => setLanguage('om')}
+                onClick={() => {
+                  setLanguage('om');
+                  setGlobalLocale('om');
+                }}
                 className={`underline underline-offset-2 ${
                   language === 'om' ? 'font-semibold text-ink-900' : 'text-ink-500 hover:text-ink-700'
                 }`}
@@ -168,9 +196,9 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
           </div>
 
           <div className="flex items-center justify-between text-meta text-ink-500 pt-2">
-            <Link href="#terms">Terms</Link>
+            <Link href="/terms">Terms</Link>
             <span>and</span>
-            <Link href="#privacy">Privacy</Link>
+            <Link href="/privacy">Privacy</Link>
           </div>
         </form>
       ) : (
@@ -198,7 +226,7 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
               fullWidth
               loading={loading}
             >
-              Confirm and sign in
+              {t('auth.verify_button', undefined, language)}
             </Button>
 
             <button
@@ -210,7 +238,11 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
                 setError(null);
               }}
             >
-              Use a different email
+              {language === 'am'
+                ? 'ሌላ ኢሜይል ተጠቀም'
+                : language === 'om'
+                ? 'Imeelii biraa fayyadamaa'
+                : 'Use a different email'}
             </button>
           </div>
         </form>
