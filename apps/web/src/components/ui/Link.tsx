@@ -6,11 +6,13 @@ import { Icon } from './Icon';
 export interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
   isExternal?: boolean;
+  unstyled?: boolean;
 }
 
 export function Link({
   href,
   isExternal,
+  unstyled = false,
   children,
   className = '',
   ...props
@@ -29,7 +31,16 @@ export function Link({
     </>
   );
 
-  const classes = `text-spruce-700 underline underline-offset-2 decoration-1 hover:decoration-2 transition-all ${className}`;
+  const isButtonLike =
+    unstyled ||
+    className.includes('bg-') ||
+    className.includes('border-') ||
+    className.includes('rounded-') ||
+    className.includes('no-underline');
+
+  const classes = isButtonLike
+    ? className
+    : `text-spruce-700 underline underline-offset-2 decoration-1 hover:decoration-2 transition-all ${className}`;
 
   if (external) {
     return (
