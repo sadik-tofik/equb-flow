@@ -113,7 +113,7 @@ export function RoundDetailView({
 
               {/* Time on desktop (Section A5) */}
               <div className="hidden md:block font-mono text-meta text-ink-500">
-                {c.blockTime ? formatTime(c.blockTime) : '—'}
+                {c.blockTime ? formatTime(c.blockTime) : '-'}
               </div>
 
               <div className="flex items-center gap-4">
@@ -131,7 +131,7 @@ export function RoundDetailView({
                   </button>
                 ) : (
                   <span className="text-meta text-ink-500 min-w-[40px] text-right">
-                    —
+                    -
                   </span>
                 )}
               </div>

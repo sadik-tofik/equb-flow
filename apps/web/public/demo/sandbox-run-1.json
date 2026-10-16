@@ -1,0 +1,196 @@
+{
+  "runId": "sandbox-run-1",
+  "label": "SIMULATED",
+  "network": "Arc Testnet (Chain ID 5042002)",
+  "group": {
+    "id": "74cfacf9-a213-4e8a-bea7-7c78fc4c6f4d",
+    "name": "Circle of six (Sandbox)",
+    "memberCount": 4,
+    "contributionDisplay": "0.10 USDC",
+    "potDisplay": "0.40 USDC",
+    "cadenceText": "12 hours (accelerated)",
+    "rulesVersion": 1,
+    "rulesHash": "3f9a72c918ae902148bf901b0849201948ba170cef"
+  },
+  "participants": [
+    { "alias": "Alice (SIMULATED)", "wallet": "0xbba443ebba9b3b59fd6fed947e7d63056bae31f0", "slot": 1 },
+    { "alias": "Bob (SIMULATED)", "wallet": "0xaebab5a2f65d2f2b79e23d3c2777e20cc5fb2b5e", "slot": 2 },
+    { "alias": "Charlie (SIMULATED)", "wallet": "0x2721630324b533d971b31d16b81962b788e2b092", "slot": 3 },
+    { "alias": "Dave (SIMULATED)", "wallet": "0x9040d0bd7e6d9b060e69ff436cfe9087a953dfbd", "slot": 4 }
+  ],
+  "events": [
+    {
+      "step": 1,
+      "name": "Collect",
+      "timestamp": "2026-10-12T10:35:00Z",
+      "timeDisplay": "9:00 AM",
+      "title": "Contributions sent to safety lock",
+      "description": "Alice, Bob, and Dave sent 0.10 USDC on Arc Testnet. Charlie's payment is delayed.",
+      "receipt": {
+        "txHash": "0xfb15cb000b0648ba2019",
+        "txUrl": "https://testnet.arcscan.io/tx/0xfb15cb000b0648ba2019",
+        "amount": "0.10 USDC",
+        "from": "Alice"
+      },
+      "activeMember": "Alice",
+      "slip": {
+        "status": "due",
+        "amount": "0.10",
+        "statusText": "Paid on time. 3 of 4 contributions collected."
+      }
+    },
+    {
+      "step": 2,
+      "name": "Match",
+      "timestamp": "2026-10-12T10:36:15Z",
+      "timeDisplay": "9:01 AM",
+      "title": "On-chain watcher verified transfers",
+      "description": "3 transfers matched to registered member wallets with 0 discrepancy. Charlie has not paid.",
+      "receipt": {
+        "txHash": "0x86cfeee95ce81048ba99",
+        "txUrl": "https://testnet.arcscan.io/tx/0x86cfeee95ce81048ba99",
+        "amount": "0.10 USDC",
+        "from": "Bob"
+      },
+      "activeMember": "Bob",
+      "slip": {
+        "status": "waiting",
+        "amount": "0.10",
+        "statusText": "Awaiting Charlie's contribution before deadline."
+      }
+    },
+    {
+      "step": 3,
+      "name": "Decide",
+      "timestamp": "2026-10-12T10:41:20Z",
+      "timeDisplay": "9:06 AM",
+      "title": "Charlie paid 6 minutes late; Proposal P-0017 created",
+      "description": "Assistant suggested accepting Charlie's late payment (Rule 3 allows late payment with lateness recorded). Group approved by consensus (2 of 2 votes).",
+      "receipt": {
+        "txHash": "0xedf9460a159b39201948",
+        "txUrl": "https://testnet.arcscan.io/tx/0xedf9460a159b39201948",
+        "amount": "0.10 USDC",
+        "from": "Charlie"
+      },
+      "activeMember": "Charlie",
+      "proposal": {
+        "id": "P-0017",
+        "title": "Accept Charlie's late payment?",
+        "reasoning": "Charlie paid 6 minutes past the deadline. Amount matches 0.10 USDC exactly. Group rules allow late payments with recorded lateness.",
+        "status": "approved",
+        "votes": "2 of 2 approvals"
+      },
+      "slip": {
+        "status": "late",
+        "amount": "0.10",
+        "statusText": "Late payment accepted by group decision."
+      }
+    },
+    {
+      "step": 4,
+      "name": "Release",
+      "timestamp": "2026-10-12T10:43:00Z",
+      "timeDisplay": "9:08 AM",
+      "title": "Payout of 0.40 USDC authorized and released",
+      "description": "Deterministic safety gate verified all 4 contributions are matched. Pot released to Alice (Round 1 recipient).",
+      "receipt": {
+        "txHash": "0x99bf2049102837bcde10",
+        "txUrl": "https://testnet.arcscan.io/tx/0x99bf2049102837bcde10",
+        "amount": "0.40 USDC",
+        "from": "Equb Pot",
+        "to": "Alice"
+      },
+      "activeMember": "Alice",
+      "slip": {
+        "status": "paid",
+        "amount": "0.40",
+        "statusText": "Pot released to Alice. Round 1 closed successfully."
+      }
+    },
+    {
+      "step": 5,
+      "name": "Record",
+      "timestamp": "2026-10-12T10:43:10Z",
+      "timeDisplay": "9:09 AM",
+      "title": "Hash chain updated; 20 entries verified",
+      "description": "Decision record seq 20 written with SHA-256 fingerprint. Cryptographic chain verified intact.",
+      "receipt": {
+        "txHash": "0xa3f912c98401beef4201",
+        "txUrl": "https://testnet.arcscan.io/tx/0xa3f912c98401beef4201",
+        "fingerprint": "51219c21baa5001928df0193bb92100a7e5849201948ba170cef"
+      },
+      "activeMember": "Alice",
+      "slip": {
+        "status": "complete",
+        "amount": "0.40",
+        "statusText": "All 20 record entries verified."
+      }
+    }
+  ],
+  "decisionRecords": [
+    {
+      "seq": 1,
+      "at": "2026-10-12T10:30:00Z",
+      "kind": "group_created",
+      "reason": "Circle of six created on Arc Testnet with 4 members.",
+      "hash": "c018249fae019284ba9028190283746192837461928374619283746192837461",
+      "prevHash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "seq": 2,
+      "at": "2026-10-12T10:31:00Z",
+      "kind": "rules_frozen",
+      "reason": "Rules version 1 frozen: fingerprint 3f9a72c918ae902148bf901b0849201948ba170cef",
+      "hash": "d128394018294729103847291038472910384729103847291038472910384729",
+      "prevHash": "c018249fae019284ba9028190283746192837461928374619283746192837461"
+    },
+    {
+      "seq": 3,
+      "at": "2026-10-12T10:35:05Z",
+      "kind": "contribution_matched",
+      "reason": "Alice contribution of 10000 base units matched on Arc Testnet.",
+      "hash": "e239482019384729103847291038472910384729103847291038472910384729",
+      "prevHash": "d128394018294729103847291038472910384729103847291038472910384729"
+    },
+    {
+      "seq": 4,
+      "at": "2026-10-12T10:35:10Z",
+      "kind": "contribution_matched",
+      "reason": "Bob contribution of 10000 base units matched on Arc Testnet.",
+      "hash": "f340592019384729103847291038472910384729103847291038472910384729",
+      "prevHash": "e239482019384729103847291038472910384729103847291038472910384729"
+    },
+    {
+      "seq": 5,
+      "at": "2026-10-12T10:35:15Z",
+      "kind": "contribution_matched",
+      "reason": "Dave contribution of 10000 base units matched on Arc Testnet.",
+      "hash": "0451602019384729103847291038472910384729103847291038472910384729",
+      "prevHash": "f340592019384729103847291038472910384729103847291038472910384729"
+    },
+    {
+      "seq": 6,
+      "at": "2026-10-12T10:41:20Z",
+      "kind": "exception_proposed",
+      "reason": "D3 proposal created: accept Charlie's late payment (6 min late).",
+      "hash": "1562712019384729103847291038472910384729103847291038472910384729",
+      "prevHash": "0451602019384729103847291038472910384729103847291038472910384729"
+    },
+    {
+      "seq": 7,
+      "at": "2026-10-12T10:42:00Z",
+      "kind": "proposal_approved",
+      "reason": "Charlie late payment approved by 2 members. Latency recorded.",
+      "hash": "2673822019384729103847291038472910384729103847291038472910384729",
+      "prevHash": "1562712019384729103847291038472910384729103847291038472910384729"
+    },
+    {
+      "seq": 8,
+      "at": "2026-10-12T10:43:00Z",
+      "kind": "payout_authorized",
+      "reason": "Round 1 pot of 40000 base units released to Alice (Recipient).",
+      "hash": "3784932019384729103847291038472910384729103847291038472910384729",
+      "prevHash": "2673822019384729103847291038472910384729103847291038472910384729"
+    }
+  ]
+}

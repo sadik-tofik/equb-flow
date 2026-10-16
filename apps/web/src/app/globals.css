@@ -109,7 +109,6 @@ button {
 :focus-visible {
   outline: 2px solid var(--ink-900);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--spruce-100);
 }
 
 /* Tabular Numerals for Currency & Counts */
