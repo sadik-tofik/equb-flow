@@ -16,6 +16,8 @@ import {
   Link,
   Icon,
 } from './ui';
+import { useLocale } from '../lib/i18n';
+import { payFlowTranslations } from '../lib/app-translations';
 
 interface PayFlowModalProps {
   obligation: MyObligation;
@@ -34,6 +36,8 @@ export function PayFlowModal({
   onClose,
   onSuccess,
 }: PayFlowModalProps) {
+  const locale = useLocale();
+  const c = payFlowTranslations[locale] || payFlowTranslations.en;
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [inFlightState, setInFlightState] = React.useState<'idle' | 'sending' | 'failed_after' | 'confirmed'>('idle');
@@ -137,20 +141,20 @@ export function PayFlowModal({
       onClose={handleClose}
       title={
         inFlightState === 'confirmed'
-          ? 'Contribution confirmed'
+          ? c.modalTitleConfirmed
           : inFlightState === 'sending'
-          ? 'Sending'
-          : 'Send your contribution'
+          ? c.modalTitleSending
+          : c.modalTitleNormal
       }
     >
       {/* State: Group is paused */}
       {isPaused && (
         <div className="space-y-4">
           <div className="p-4 bg-brick-100 border border-brick-700/30 text-brick-700 text-secondary">
-            The organizer paused this circle. No payments will move until it resumes.
+            {c.pausedWarning}
           </div>
           <Button variant="secondary" fullWidth onClick={handleClose}>
-            Close
+            {c.closeBtn}
           </Button>
         </div>
       )}
@@ -159,23 +163,23 @@ export function PayFlowModal({
       {!isPaused && inFlightState === 'confirmed' && receipt && (
         <div className="space-y-5 select-none">
           <div className="flex items-center gap-2">
-            <Stamp text="CONFIRMED" animated={true} />
+            <Stamp text={c.confirmedStamp} animated={true} />
           </div>
 
           <Slip
             slipNumber={`No. REC-${obligation.roundNo}`}
-            title="Confirmed receipt"
+            title={c.confirmedReceiptTitle}
             amount={obligation.display.replace(/ USDC$/, '')}
-            amountSubtext={`Confirmed. Your contribution for round ${obligation.roundNo} is recorded.`}
+            amountSubtext={c.confirmedReceiptSub(obligation.roundNo)}
             isStamped={true}
-            stampText="PAID"
+            stampText={c.paidStamp}
           >
             <div className="space-y-2 text-meta text-ink-700">
               <div className="text-ink-500 font-mono text-[12px] uppercase">
-                Receipt Reference
+                {c.receiptRef}
               </div>
               <div className="font-mono text-meta text-ink-900 break-all bg-paper-2 p-2 rounded-sm">
-                {receipt.txHash ? `${receipt.txHash.slice(0, 10)}…${receipt.txHash.slice(-8)}` : 'On-chain finality recorded'}
+                {receipt.txHash ? `${receipt.txHash.slice(0, 10)}…${receipt.txHash.slice(-8)}` : (locale === 'am' ? 'የብሎክቼይን ማረጋገጫ ተመዝግቧል' : locale === 'om' ? 'Mirkaneessi tooraa galmaa\'eera' : 'On-chain finality recorded')}
               </div>
             </div>
           </Slip>
@@ -186,14 +190,14 @@ export function PayFlowModal({
               isExternal
               className="flex-1 text-center py-3 border border-ink-900 rounded-sm font-sans text-secondary font-medium text-ink-900 hover:bg-paper-2"
             >
-              Open receipt
+              {c.openReceiptLink}
             </Link>
             <Button
               variant="primary"
               className="flex-1"
               onClick={handleClose}
             >
-              Back to the circle
+              {c.backToCircleBtn}
             </Button>
           </div>
         </div>
@@ -203,7 +207,7 @@ export function PayFlowModal({
       {!isPaused && inFlightState === 'sending' && (
         <div className="space-y-5 select-none">
           <p className="text-secondary text-ink-700">
-            Authorizing payment from your account to the safety lock.
+            {c.sendingDesc}
           </p>
 
           <div className="p-4 bg-paper-0 border border-line">
@@ -218,7 +222,7 @@ export function PayFlowModal({
             onClick={handleClose}
             className="text-secondary text-ink-500 underline underline-offset-2 hover:text-ink-900"
           >
-            Close (it keeps working)
+            {c.closeKeepsWorking}
           </button>
         </div>
       )}
@@ -227,10 +231,10 @@ export function PayFlowModal({
       {!isPaused && inFlightState === 'failed_after' && (
         <div className="space-y-4 select-none">
           <div className="p-4 bg-ochre-100 border border-ochre-700/30 text-ochre-700 text-secondary">
-            We could not confirm it yet. Do not pay again. The organizer can see it.
+            {c.timeoutWarning}
           </div>
           <Button variant="secondary" fullWidth onClick={handleClose}>
-            Check status
+            {c.checkStatusBtn}
           </Button>
         </div>
       )}
@@ -239,20 +243,20 @@ export function PayFlowModal({
       {!isPaused && staleSession && inFlightState === 'idle' && (
         <div className="space-y-4 select-none">
           <div className="p-3 bg-ochre-100 border border-ochre-700/30 text-ochre-700 text-meta">
-            For your safety, please sign in again before sending money.
+            {c.staleSessionMsg}
           </div>
 
           {!reauthSent ? (
             <div className="space-y-3">
               <p className="text-secondary text-ink-700">
-                Send a quick confirmation code to <strong>{user.alias}</strong> to authorize this contribution.
+                {c.reauthPrompt(user.alias)}
               </p>
               <Button
                 variant="primary"
                 fullWidth
                 onClick={() => setReauthSent(true)}
               >
-                Send confirmation code
+                {c.sendConfirmCodeBtn}
               </Button>
             </div>
           ) : (
@@ -272,7 +276,7 @@ export function PayFlowModal({
                 fullWidth
                 loading={reauthLoading}
               >
-                Confirm and continue
+                {c.confirmContinueBtn}
               </Button>
             </form>
           )}
@@ -285,7 +289,7 @@ export function PayFlowModal({
           {/* Ruled payment details */}
           <div className="border-t border-b border-line divide-y divide-line text-secondary">
             <div className="py-3 flex justify-between items-baseline">
-              <span className="text-ink-700">Amount</span>
+              <span className="text-ink-700">{c.amountLabel}</span>
               <div className="font-sans text-amount font-semibold tabular text-ink-900 leading-none">
                 {obligation.display.replace(/ USDC$/, '')}
                 <span className="text-secondary text-ink-500 font-normal ml-2">USDC</span>
@@ -293,40 +297,40 @@ export function PayFlowModal({
             </div>
 
             <div className="py-2.5 flex justify-between items-center text-meta">
-              <span className="text-ink-700">From</span>
-              <span className="font-semibold text-ink-900">Your account</span>
+              <span className="text-ink-700">{c.fromLabel}</span>
+              <span className="font-semibold text-ink-900">{c.fromValue}</span>
             </div>
 
             <div className="py-2.5 flex justify-between items-center text-meta">
-              <span className="text-ink-700">To</span>
-              <span className="font-semibold text-ink-900">The group&apos;s safety lock</span>
+              <span className="text-ink-700">{c.toLabel}</span>
+              <span className="font-semibold text-ink-900">{c.toValue}</span>
             </div>
 
             <div className="py-2.5 flex justify-between items-center text-meta">
-              <span className="text-ink-700">Round</span>
-              <span className="font-semibold text-ink-900 tabular">{obligation.roundNo} of 6</span>
+              <span className="text-ink-700">{c.roundLabel}</span>
+              <span className="font-semibold text-ink-900 tabular">{c.roundValue(obligation.roundNo, 6)}</span>
             </div>
 
             <div className="py-2 flex justify-between items-center text-[12px] text-persimmon-700 font-mono">
-              <span>Test money. No real value.</span>
+              <span>{c.testMoneyBadge}</span>
             </div>
           </div>
 
           {/* WHAT HAPPENS NEXT (numbered 1 to 3, Section A4) */}
           <div className="p-4 bg-paper-0 border border-line space-y-2">
             <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-              What Happens Next
+              {c.whatHappensNextTitle}
             </div>
             <ol className="list-decimal pl-5 space-y-1 text-secondary text-ink-700">
-              <li>We send the money from your account.</li>
-              <li>The network confirms it, usually in seconds.</li>
-              <li>The group&apos;s record shows your receipt.</li>
+              <li>{c.step1}</li>
+              <li>{c.step2}</li>
+              <li>{c.step3}</li>
             </ol>
           </div>
 
           {/* Countdown line */}
           <div className="text-meta text-ink-500 font-mono">
-            Your sign-in is fresh for {formattedTime} more minutes.
+            {c.freshCountdown(formattedTime)}
           </div>
 
           {error && (
@@ -346,7 +350,7 @@ export function PayFlowModal({
             disabled={loading}
             onClick={handleApprove}
           >
-            Send {obligation.display}
+            {c.sendBtn(obligation.display)}
           </Button>
         </div>
       )}

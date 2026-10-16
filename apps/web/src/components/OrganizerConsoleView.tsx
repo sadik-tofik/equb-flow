@@ -10,6 +10,8 @@ import {
   Sheet,
   ConsentControl,
 } from './ui';
+import { useLocale } from '../lib/i18n';
+import { organizerConsoleTranslations } from '../lib/app-translations';
 
 interface OrganizerConsoleViewProps {
   group: GroupSummary;
@@ -30,6 +32,8 @@ export function OrganizerConsoleView({
   onStartCycleClick,
   onCreateGroupClick,
 }: OrganizerConsoleViewProps) {
+  const locale = useLocale();
+  const c = organizerConsoleTranslations[locale] || organizerConsoleTranslations.en;
   const [copiedToken, setCopiedToken] = React.useState<string | null>(null);
   const [isPauseSheetOpen, setIsPauseSheetOpen] = React.useState(false);
   const [isStartSheetOpen, setIsStartSheetOpen] = React.useState(false);
@@ -81,14 +85,14 @@ export function OrganizerConsoleView({
     <div className="select-none space-y-8">
       {/* Page Header with Persistent Pause/Resume and New Circle actions */}
       <PageHeader
-        monoLabel={`No. ${group.id.slice(0, 4)} · Organizer console`}
+        monoLabel={c.mono(group.id)}
         title={group.name}
         statusSentence={
           group.paused
-            ? 'The circle is paused. No payments will move until you resume.'
+            ? c.pausedStatus
             : isRunning
-            ? `Cycle ${group.cycleNo} is active and running.`
-            : 'Pre-cycle preparation. Invite members and verify readiness to start.'
+            ? c.runningStatus(group.cycleNo)
+            : c.prepStatus
         }
         action={
           <div className="flex items-center gap-3 flex-wrap">
@@ -97,7 +101,7 @@ export function OrganizerConsoleView({
               size="sm"
               onClick={onCreateGroupClick}
             >
-              New circle
+              {c.newCircle}
             </Button>
 
             <button
@@ -109,7 +113,7 @@ export function OrganizerConsoleView({
                   : 'border-brick-700 text-brick-700 hover:bg-brick-100/50'
               }`}
             >
-              {group.paused ? 'Resume the circle' : 'Pause the circle'}
+              {group.paused ? c.resumeCircle : c.pauseCircle}
             </button>
           </div>
         }
@@ -121,12 +125,12 @@ export function OrganizerConsoleView({
           <div className="flex justify-between items-center flex-wrap gap-4">
             <div>
               <h3 className="font-sans text-lead font-semibold text-ink-900">
-                Start the circle
+                {c.startCycle}
               </h3>
               <p className="font-sans text-secondary text-ink-500 mt-0.5">
                 {allReady
-                  ? 'All member slots are filled and accounts are ready.'
-                  : `Waiting for ${group.memberCount - readyMembers.length} member slot(s) to be joined and prepared.`}
+                  ? (locale === 'am' ? 'ሁሉም የአባላት ቦታዎች ተሞልተዋል፤ ሂሳቦች ዝግጁ ናቸው።' : locale === 'om' ? 'Iddoon miseensotaa hundinuu guutameera, qophii ta\'aniiru.' : 'All member slots are filled and accounts are ready.')
+                  : (locale === 'am' ? `${group.memberCount - readyMembers.length} አባላት እስኪቀላቀሉ በመጠባበቅ ላይ።` : locale === 'om' ? `Miseensota ${group.memberCount - readyMembers.length} hanga seenanitti eegaa jira.` : `Waiting for ${group.memberCount - readyMembers.length} member slot(s) to be joined and prepared.`)}
               </p>
             </div>
 
@@ -137,13 +141,17 @@ export function OrganizerConsoleView({
                 disabled={!allReady}
                 onClick={() => setIsStartSheetOpen(true)}
               >
-                Start the circle
+                {c.startCycle}
               </Button>
             </div>
           </div>
           {!allReady && (
             <p className="font-sans text-meta text-ink-500 mt-2 italic">
-              All {group.memberCount} members must join, fund their wallets, and acknowledge rules before starting.
+              {locale === 'am'
+                ? `ሁሉም ${group.memberCount} አባላት ከመጀመሩ በፊት መቀላቀል፣ ዋስትና ማስገባትና ደንቦችን ማጽደቅ አለባቸው።`
+                : locale === 'om'
+                ? `Miseensonni ${group.memberCount} hundi iqubiin eegaluun dura seenuu, qarshii wabii galchuu fi heera mirkaneessuu qabu.`
+                : `All ${group.memberCount} members must join, fund their wallets, and acknowledge rules before starting.`}
             </p>
           )}
         </div>
@@ -152,7 +160,7 @@ export function OrganizerConsoleView({
       {/* READINESS LIST (A9.2) */}
       <div className="bg-paper-1 border border-line p-5">
         <div className="font-mono text-meta font-semibold text-ink-500 uppercase tracking-wider mb-3">
-          READINESS
+          {c.membersTitle(readyMembers.length, group.memberCount)}
         </div>
 
         {isLoading ? (
@@ -170,10 +178,10 @@ export function OrganizerConsoleView({
               >
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-meta text-ink-500 w-16">
-                    Slot {idx + 1}
+                    {locale === 'am' ? `ቦታ ${idx + 1}` : locale === 'om' ? `Bakka ${idx + 1}` : `Slot ${idx + 1}`}
                   </span>
                   <span className="text-ink-900 font-semibold">
-                    {mem ? mem.alias : 'Not joined yet'}
+                    {mem ? mem.alias : c.emptySlot}
                   </span>
                 </div>
 
@@ -182,18 +190,18 @@ export function OrganizerConsoleView({
                     mem.ready ? (
                       <div className="flex items-center gap-2">
                         <span className="text-ink-500 text-meta">
-                          Joined · account ready
+                          {c.depositReady}
                         </span>
                         <Stamp text="VERIFIED" />
                       </div>
                     ) : (
                       <span className="text-ochre-700 text-meta font-medium">
-                        Joined · account being prepared
+                        {c.waitingDeposit}
                       </span>
                     )
                   ) : (
                     <span className="text-ink-500 text-meta">
-                      Waiting for invite
+                      {c.waitingForJoin}
                     </span>
                   )}
                 </div>
@@ -202,9 +210,15 @@ export function OrganizerConsoleView({
 
             {/* Funding Status Row */}
             <div className="py-3.5 flex justify-between items-center flex-wrap gap-2 text-secondary font-sans bg-paper-2/50 px-2">
-              <span className="text-ink-900 font-medium">Funding status</span>
+              <span className="text-ink-900 font-medium">
+                {locale === 'am' ? 'የተቀማጭ ዋስትና ሁኔታ' : locale === 'om' ? 'Haala qarshii wabii' : 'Funding status'}
+              </span>
               <span className="text-meta font-mono text-ink-700">
-                Each member needs 1 USDC test money. ({readyMembers.length}/{group.memberCount} funded)
+                {locale === 'am'
+                  ? `እያንዳንዱ አባል 1 USDC የሙከራ ዋስትና ይሻል። (${readyMembers.length}/${group.memberCount} ዝግጁ)`
+                  : locale === 'om'
+                  ? `Miseensi hundi 1 USDC yaalii barbaada. (${readyMembers.length}/${group.memberCount} qophii)`
+                  : `Each member needs 1 USDC test money. (${readyMembers.length}/${group.memberCount} funded)`}
               </span>
             </div>
           </div>
@@ -214,7 +228,7 @@ export function OrganizerConsoleView({
       {/* INVITES SECTION (A9.2) */}
       <div className="bg-paper-1 border border-line p-5">
         <div className="font-mono text-meta font-semibold text-ink-500 uppercase tracking-wider mb-3">
-          INVITES
+          {c.inviteLink}
         </div>
 
         <div className="divide-y divide-line border-t border-b border-line">
@@ -228,7 +242,7 @@ export function OrganizerConsoleView({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-meta text-ink-500">
-                      Invite link {idx + 1}
+                      {locale === 'am' ? `የመጋበዣ ሊንክ ${idx + 1}` : locale === 'om' ? `Hidhata affeerraa ${idx + 1}` : `Invite link ${idx + 1}`}
                     </span>
                     <span
                       className={`text-meta font-mono uppercase px-1.5 py-0.5 rounded-sm ${
@@ -237,7 +251,9 @@ export function OrganizerConsoleView({
                           : 'bg-spruce-100 text-spruce-700'
                       }`}
                     >
-                      {isUsed ? `Used by ${inv.claimedBy}` : 'Active'}
+                      {isUsed
+                        ? (locale === 'am' ? `በ ${inv.claimedBy} ተወስዷል` : locale === 'om' ? `${inv.claimedBy} itti fayyadameera` : `Used by ${inv.claimedBy}`)
+                        : (locale === 'am' ? 'ዝግጁ' : locale === 'om' ? 'Qophii' : 'Active')}
                     </span>
                   </div>
                   <div className="font-mono text-[12px] text-ink-500 mt-1 break-all select-all">
@@ -252,14 +268,14 @@ export function OrganizerConsoleView({
                       size="sm"
                       onClick={() => copyInvite(inv.token, inv.url)}
                     >
-                      {copiedToken === inv.token ? 'Copied' : 'Copy link'}
+                      {copiedToken === inv.token ? c.copied : c.copyLink}
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => shareInvite(inv.token, inv.url)}
                     >
-                      Share
+                      {c.shareLink}
                     </Button>
                   </div>
                 )}
@@ -273,19 +289,19 @@ export function OrganizerConsoleView({
       <Sheet
         isOpen={isPauseSheetOpen}
         onClose={() => setIsPauseSheetOpen(false)}
-        title={group.paused ? 'Resume the circle' : 'Pause the circle'}
+        title={group.paused ? c.resumeCircle : c.pauseSheetTitle}
       >
         <div className="space-y-5">
           <p className="font-sans text-lead font-normal text-ink-900 leading-snug">
             {group.paused
-              ? 'Resuming enables the group to accept scheduled payments and continue rotating pot payouts.'
-              : 'No payments will move until you resume. Payments already sent are not undone.'}
+              ? (locale === 'am' ? 'ዕቁቡን መቀጠል የታቀዱ ክፍያዎችንና የዕጣ ክፍያዎችን እንዲቀጥሉ ያስችላል።' : locale === 'om' ? 'Itti fufuun kaffaltii fi qodaa akka itti fufu taasisa.' : 'Resuming enables the group to accept scheduled payments and continue rotating pot payouts.')
+              : c.pauseSheetDesc}
           </p>
 
           <div className="p-3 bg-paper-2 border border-line text-meta font-mono text-ink-700">
             {group.paused
-              ? 'Safety lock will be disengaged on Arc Testnet.'
-              : 'Safety lock will engage on Arc Testnet to fail-closed all transfers.'}
+              ? (locale === 'am' ? 'የደህንነት ቁልፉ በArc Testnet ላይ ይነሳል።' : locale === 'om' ? 'Balballi nageenyaa Arc Testnet irratti banama.' : 'Safety lock will be disengaged on Arc Testnet.')
+              : (locale === 'am' ? 'የደህንነት ቁልፉ በArc Testnet ላይ በማንቃት ሁሉንም ክፍያዎች ያቆማል።' : locale === 'om' ? 'Balballi nageenyaa Arc Testnet irratti cufamee kaffaltii hunda dhaaba.' : 'Safety lock will engage on Arc Testnet to fail-closed all transfers.')}
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -295,7 +311,7 @@ export function OrganizerConsoleView({
               fullWidth
               onClick={() => setIsPauseSheetOpen(false)}
             >
-              Cancel
+              {c.cancelBtn}
             </Button>
             <Button
               variant={group.paused ? 'primary' : 'destructive'}
@@ -303,7 +319,7 @@ export function OrganizerConsoleView({
               fullWidth
               onClick={handleConfirmPause}
             >
-              {group.paused ? 'Confirm resume' : 'Confirm pause'}
+              {group.paused ? c.resumeCircle : c.confirmPauseBtn}
             </Button>
           </div>
         </div>
@@ -313,16 +329,16 @@ export function OrganizerConsoleView({
       <Sheet
         isOpen={isStartSheetOpen}
         onClose={() => setIsStartSheetOpen(false)}
-        title="Start the circle"
+        title={c.rulesFreezeTitle}
       >
         <div className="space-y-5">
           <p className="font-sans text-lead font-normal text-ink-900 leading-snug">
-            Starting freezes the rules and the order. They cannot change during the cycle.
+            {c.rulesFreezeDesc}
           </p>
 
           <div className="p-4 bg-paper-2 border border-line space-y-2">
             <div className="font-mono text-meta font-medium text-ink-500 uppercase tracking-wider">
-              Rules fingerprint to freeze:
+              {locale === 'am' ? 'የሚታሸገው የደንቦች ዲጂታል አሻራ:' : locale === 'om' ? 'Mallattoo seeraa qadaadamu:' : 'Rules fingerprint to freeze:'}
             </div>
             <div className="font-mono text-[13px] text-ink-900 break-all select-all">
               {group.rulesHash || '3f9a72c918ae902148bf901b0849201948ba170cef'}
@@ -334,7 +350,7 @@ export function OrganizerConsoleView({
             checked={freezeConsent}
             onChange={setFreezeConsent}
           >
-            I understand that rules and payout order will freeze permanently.
+            {c.consentCheckbox}
           </ConsentControl>
 
           <div className="flex gap-3 pt-2">
@@ -344,7 +360,7 @@ export function OrganizerConsoleView({
               fullWidth
               onClick={() => setIsStartSheetOpen(false)}
             >
-              Cancel
+              {c.cancelBtn}
             </Button>
             <Button
               variant="primary"
@@ -353,7 +369,7 @@ export function OrganizerConsoleView({
               disabled={!freezeConsent}
               onClick={handleConfirmStart}
             >
-              Confirm and start circle
+              {c.confirmStartBtn}
             </Button>
           </div>
         </div>

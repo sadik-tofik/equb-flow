@@ -7,12 +7,16 @@ import { SiteFooter } from '../../components/site/SiteFooter';
 import { PageHeader, CodeBlock, Stamp, Icon } from '../../components/ui';
 import {
   verifyChainInBrowser,
-  GOLDEN_VECTOR,
   DecisionRecordForVerify,
   VerificationResult,
 } from '../../lib/verify-browser';
+import { useLocale } from '../../lib/i18n';
+import { proofTranslations } from '../../lib/public-page-translations';
 
 export default function ProofPage() {
+  const locale = useLocale();
+  const c = proofTranslations[locale];
+
   const initialRecords: DecisionRecordForVerify[] = [
     {
       seq: 1,
@@ -70,9 +74,9 @@ export default function ProofPage() {
 
       <main className="max-w-4xl mx-auto px-5 py-8 space-y-12">
         <PageHeader
-          monoLabel="Cryptographic Proof · WebCrypto SHA-256"
-          title="Do not take our word for it."
-          statusSentence="How EqubFlow computes append-only hash chains so anyone can independently audit decision records."
+          monoLabel={c.mono}
+          title={c.title}
+          statusSentence={c.statusSentence}
         />
 
         {/* Live Verifier */}
@@ -80,19 +84,19 @@ export default function ProofPage() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <span className="font-mono text-meta uppercase text-ink-500 block mb-1">
-                In-browser verifier
+                {c.inBrowserVerifier}
               </span>
               {result?.ok ? (
                 <div className="flex items-center gap-2">
                   <Stamp text="VERIFIED" />
                   <span className="font-sans text-secondary text-ink-900 font-medium">
-                    {result.verifiedCount} entries intact.
+                    {c.entriesIntact(result.verifiedCount)}
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-brick-700 font-semibold">
                   <Icon name="error" size={18} ariaHidden={true} />
-                  <span>Chain broken at entry #{result?.brokenSeq}</span>
+                  <span>{c.chainBroken(result?.brokenSeq ?? 0)}</span>
                 </div>
               )}
             </div>
@@ -102,7 +106,7 @@ export default function ProofPage() {
               onClick={toggleTamper}
               className="px-4 py-2 border border-brick-700 text-brick-700 text-secondary font-semibold hover:bg-brick-100/50"
             >
-              {tampered ? 'Reset to valid record' : 'Change one entry and check again'}
+              {tampered ? c.restoreCleanData : c.injectTamperedData}
             </button>
           </div>
         </section>
@@ -110,20 +114,29 @@ export default function ProofPage() {
         {/* How the check works */}
         <section className="space-y-4">
           <h2 className="font-display text-h3 font-medium text-ink-900">
-            How the check works
+            {c.howItWorksTitle}
           </h2>
+          <p className="font-sans text-secondary text-ink-700 leading-relaxed">
+            {c.howItWorksBody}
+          </p>
           <ol className="list-decimal pl-5 space-y-3 font-sans text-secondary text-ink-700 leading-relaxed">
             <li>
-              <strong>Canonical format: </strong>
-              Each entry is canonicalized according to RFC 8785 (JCS). Keys are sorted lexicographically by UTF-16 code units, and whitespace is removed.
+              <strong>{locale === 'am' ? 'የተዋቀረ ቅርጸት (RFC 8785 JCS): ' : locale === 'om' ? 'Boca Waraqaa (RFC 8785 JCS): ' : 'Canonical format: '}</strong>
+              {locale === 'am' ? 'እያንዳንዱ ምዝገባ በRFC 8785 መሰረት ቁልፎቹ በፊደል ቅደም ተከተል ተደርድረው ያለ አላስፈላጊ ክፍተት ይሰላሉ።' :
+               locale === 'om' ? 'Galmeen hundinuu seera RFC 8785 hordofuun qubeewwan tartiibaan tooramu, bakki duwwaan ni haqama.' :
+               'Each entry is canonicalized according to RFC 8785 (JCS). Keys are sorted lexicographically by UTF-16 code units, and whitespace is removed.'}
             </li>
             <li>
-              <strong>Chained fingerprints: </strong>
-              The hash of entry <code className="font-mono text-ink-900">N</code> is computed as <code className="font-mono text-ink-900">SHA256(prevHash + canonicalJson(content))</code>.
+              <strong>{locale === 'am' ? 'የተሳሰሩ አሻራዎች: ' : locale === 'om' ? 'Haashiiwwan Walqabatan: ' : 'Chained fingerprints: '}</strong>
+              {locale === 'am' ? 'የምዝገባ N ሃሽ SHA256(prevHash + canonicalJson(content)) ተብሎ ይሰላል።' :
+               locale === 'om' ? 'Haashiin galmee N bu\'uura SHA256(prevHash + canonicalJson(content)) tiin shallagama.' :
+               'The hash of entry N is computed as SHA256(prevHash + canonicalJson(content)).'}
             </li>
             <li>
-              <strong>Tamper evidence: </strong>
-              Altering a single character in entry 2 invalidates its hash, which breaks the <code className="font-mono text-ink-900">prevHash</code> pointer of entry 3 and every entry that follows.
+              <strong>{locale === 'am' ? 'የማይበረዝ ማስረጃ: ' : locale === 'om' ? 'Ragaa Hin Balleeffamne: ' : 'Tamper evidence: '}</strong>
+              {locale === 'am' ? 'በምዝገባ 2 ላይ አንድ ፊደል ቢቀየር ሃሹ ዋጋ ያጣል፤ ይህም የምዝገባ 3ን እና ተከታዮቹን ሰንሰለት ይሰብራል።' :
+               locale === 'om' ? 'Qubeen tokko yoo jijjiirame haashiin sun ni bada; kunis sanjata galmee 3 fi kanneen itti aananii hunda balleessa.' :
+               'Altering a single character in entry 2 invalidates its hash, which breaks the prevHash pointer of entry 3 and every entry that follows.'}
             </li>
           </ol>
         </section>
@@ -131,7 +144,7 @@ export default function ProofPage() {
         {/* Code Excerpt */}
         <section className="space-y-4">
           <h2 className="font-display text-h3 font-medium text-ink-900">
-            Implementation excerpt
+            {locale === 'am' ? 'የኮድ አተገባበር ምሳሌ' : locale === 'om' ? 'Fakkeenya Koodii' : 'Implementation excerpt'}
           </h2>
           <CodeBlock
             filePath="packages/domain/src/decision-chain.ts"
@@ -148,10 +161,10 @@ export default function ProofPage() {
         {/* Python Snippet for Independent Verification */}
         <section className="space-y-4">
           <h2 className="font-display text-h3 font-medium text-ink-900">
-            Independent verification in Python
+            {c.goldenVectorTitle}
           </h2>
           <p className="font-sans text-secondary text-ink-700">
-            You do not need our software to verify the record. Run this standard Python snippet:
+            {c.goldenVectorDesc}
           </p>
           <CodeBlock
             filePath="verify.py"
@@ -174,8 +187,10 @@ print("Computed fingerprint:", record_hash)`}
 
         {/* Honest limit */}
         <section className="p-4 bg-paper-1 border border-line font-sans text-secondary text-ink-700 leading-relaxed">
-          <strong>Honest limit: </strong>
-          A person who controls the signing key and the database could rebuild a consistent record. Publishing the latest fingerprint on Arc is what makes that visible. In this testnet version, fingerprints are logged on Arc Testnet.
+          <strong>{locale === 'am' ? 'ትክክለኛ ገደብ: ' : locale === 'om' ? 'Daangaa Dhugaa: ' : 'Honest limit: '}</strong>
+          {locale === 'am' ? 'የመፈረሚያ ቁልፍ እና የመረጃ ቋት ሙሉ ቁጥጥር ያለው ሰው አዲስ ሰንሰለት ሊሰራ ይችላል። ነገር ግን የቅርብ ጊዜውን አሻራ በArc Testnet ላይ በይፋ ማስመዝገባችን ማንኛውንም ለውጥ ወዲያውኑ ግልጽ ያደርገዋል።' :
+           locale === 'om' ? 'Namni furtuu mallattoo fi kuusaa deetaa guutummaatti to\'atu sanjata haarawa ijaaruu danda\'a. Garuu ashaaraa haaraa Arc Testnet irratti maxxansuun keenya jijjiirama kamiyyuu yeroma sana mul\'ata taasisa.' :
+           'A person who controls the signing key and the database could rebuild a consistent record. Publishing the latest fingerprint on Arc is what makes that visible. In this testnet version, fingerprints are logged on Arc Testnet.'}
         </section>
       </main>
 

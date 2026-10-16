@@ -3,6 +3,8 @@
 
 import React from 'react';
 import { PageHeader, Stamp, EmptyState, Link } from './ui';
+import { useLocale } from '../lib/i18n';
+import { receiptsViewTranslations } from '../lib/app-translations';
 
 export interface ReceiptItem {
   id: string;
@@ -26,6 +28,8 @@ export function ReceiptsView({
   currentRoundNumber,
   isLoading = false,
 }: ReceiptsViewProps) {
+  const locale = useLocale();
+  const c = receiptsViewTranslations[locale] || receiptsViewTranslations.en;
   const [filter, setFilter] = React.useState<'this_round' | 'all'>('this_round');
 
   const filteredReceipts = React.useMemo(() => {
@@ -38,8 +42,8 @@ export function ReceiptsView({
   return (
     <div className="select-none space-y-6">
       <PageHeader
-        title="Receipts"
-        statusSentence="Every contribution and payout receipt involving your account."
+        title={c.title}
+        statusSentence={c.statusSentence}
       />
 
       {/* Segmented Filter: This round | All */}
@@ -53,7 +57,7 @@ export function ReceiptsView({
               : 'border-transparent text-ink-500 hover:text-ink-900'
           }`}
         >
-          This round (Round {currentRoundNumber})
+          {c.thisRound(currentRoundNumber)}
         </button>
         <button
           type="button"
@@ -64,7 +68,7 @@ export function ReceiptsView({
               : 'border-transparent text-ink-500 hover:text-ink-900'
           }`}
         >
-          All rounds ({receipts.length})
+          {c.allRounds(receipts.length)}
         </button>
       </div>
 
@@ -78,8 +82,8 @@ export function ReceiptsView({
         <EmptyState
           sentence={
             filter === 'this_round'
-              ? 'No receipts recorded for this round yet.'
-              : 'No receipts recorded yet.'
+              ? c.emptyThisRound
+              : c.emptyAll
           }
           illustrationType="ledger"
         />
@@ -98,15 +102,15 @@ export function ReceiptsView({
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-meta uppercase text-ink-500">
-                      Round {rec.roundNumber}
+                      {c.roundPrefix(rec.roundNumber)}
                     </span>
                     <span className="text-meta text-ink-500">·</span>
                     <span className="text-meta text-ink-500">{rec.date}</span>
                   </div>
                   <div className="text-ink-900 font-semibold">
                     {rec.kind === 'contribution'
-                      ? 'Contribution sent'
-                      : 'Payout received'}
+                      ? (locale === 'am' ? 'የተላከ ዕጣ ክፍያ' : locale === 'om' ? 'Gumaata ergame' : 'Contribution sent')
+                      : (locale === 'am' ? 'የተቀበሉት ዕጣ' : locale === 'om' ? 'Qodaa fudhatame' : 'Payout received')}
                   </div>
                   {shortHash && (
                     <div className="font-mono text-meta text-ink-500 mt-0.5">
@@ -124,7 +128,7 @@ export function ReceiptsView({
 
                   <div>
                     {rec.isConfirmed ? (
-                      <Stamp text="CONFIRMED" />
+                      <Stamp text={c.confirmedStamp} />
                     ) : (
                       <span className="font-mono text-meta text-ochre-700">
                         PENDING
@@ -138,7 +142,7 @@ export function ReceiptsView({
                       isExternal
                       className="text-spruce-700 hover:text-ink-900 underline text-meta font-medium"
                     >
-                      Open receipt
+                      {c.openExplorer}
                     </Link>
                   )}
                 </div>

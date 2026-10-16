@@ -13,12 +13,15 @@ import {
   Icon,
 } from '../ui';
 
+import { useLocale } from '../../lib/i18n';
+
 interface RoundPlayerProps {
   demoData?: any;
   className?: string;
 }
 
 export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
+  const locale = useLocale();
   const [data, setData] = React.useState<any>(demoData || null);
   const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
   const [isPlaying, setIsPlaying] = React.useState(false);
@@ -53,7 +56,7 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
   if (!data || !data.events) {
     return (
       <div className="p-8 text-center bg-paper-1 border border-line font-mono text-secondary text-ink-500 animate-pulse">
-        Loading sandbox replay data...
+        {locale === 'am' ? 'የሙከራ መረጃው በመጫን ላይ ነው...' : locale === 'om' ? 'Odeeffannoo yaalii fe\'aa jira...' : 'Loading sandbox replay data...'}
       </div>
     );
   }
@@ -71,12 +74,18 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
       isVerified: true,
     }));
 
+  const bannerMsg = locale === 'am'
+    ? 'የተመሰለ ዙር። የሙከራ ገንዘብ። በArc Testnet ላይ የተመዘገበው ዙር ማሳያ።'
+    : locale === 'om'
+    ? 'Yaalii marsaa. Qarshii yaalii. Marsaa Arc Testnet irratti galmaa\'e deebisee taphachiisa.'
+    : 'Simulated run. Test money. Replaying recorded Arc Testnet round.';
+
   return (
     <div className={`space-y-4 select-none ${className}`}>
       {/* Persistent Simulated Run Banner (Section 4.1) */}
       <Banner
         type="simulated"
-        message="Simulated run. Test money. Replaying recorded Arc Testnet round."
+        message={bannerMsg}
       />
 
       {/* Player Header & Controls */}
@@ -84,7 +93,9 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <span className="font-mono text-meta uppercase text-ink-500">
-              Event {currentStepIndex + 1} of {totalEvents}: {currentEvent.name}
+              {locale === 'am' ? `ክስተት ${currentStepIndex + 1} ከ ${totalEvents}: ${currentEvent.name}` :
+               locale === 'om' ? `Taatee ${currentStepIndex + 1} keessaa ${totalEvents}: ${currentEvent.name}` :
+               `Event ${currentStepIndex + 1} of ${totalEvents}: ${currentEvent.name}`}
             </span>
             <h3 className="font-sans text-lead font-semibold text-ink-900 mt-0.5">
               {currentEvent.title}
@@ -99,7 +110,7 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
               aria-label={isPlaying ? 'Pause replay' : 'Play replay'}
             >
               <Icon name={isPlaying ? 'pause' : 'play'} size={14} ariaHidden={true} />
-              <span>{isPlaying ? 'Pause' : 'Play'}</span>
+              <span>{isPlaying ? (locale === 'am' ? 'አቁም' : locale === 'om' ? 'Dhaabi' : 'Pause') : (locale === 'am' ? 'አጫውት' : locale === 'om' ? 'Taphachiisi' : 'Play')}</span>
             </button>
 
             <button
@@ -119,7 +130,7 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
               }}
               className="px-2.5 py-1.5 text-secondary text-ink-500 hover:text-ink-900 underline font-sans"
             >
-              Reset
+              {locale === 'am' ? 'እንደገና ጀምር' : locale === 'om' ? 'Haaromsi' : 'Reset'}
             </button>
           </div>
         </div>
@@ -142,11 +153,11 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
             className="w-full accent-spruce-700 h-2 bg-paper-2 rounded-none cursor-pointer"
           />
           <div className="flex justify-between text-meta font-mono text-ink-500 mt-1">
-            <span>1. Collect</span>
-            <span>2. Match</span>
-            <span>3. Decide</span>
-            <span>4. Release</span>
-            <span>5. Record</span>
+            <span>{locale === 'am' ? '1. መሰብሰብ' : locale === 'om' ? '1. Walitti Qabuu' : '1. Collect'}</span>
+            <span>{locale === 'am' ? '2. ማጣጣም' : locale === 'om' ? '2. Walsimsiisuu' : '2. Match'}</span>
+            <span>{locale === 'am' ? '3. መወሰን' : locale === 'om' ? '3. Murteessuu' : '3. Decide'}</span>
+            <span>{locale === 'am' ? '4. መልቀቅ' : locale === 'om' ? '4. Gadhiisuu' : '4. Release'}</span>
+            <span>{locale === 'am' ? '5. መመዝገብ' : locale === 'om' ? '5. Galmeessuu' : '5. Record'}</span>
           </div>
         </div>
       </div>
@@ -178,7 +189,7 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
                     isExternal
                     className="text-spruce-700 underline text-meta font-medium"
                   >
-                    Open receipt &gt;&gt;
+                    {locale === 'am' ? 'ደረሰኝ ክፈት >>' : locale === 'om' ? 'Ragaa bani >>' : 'Open receipt >>'}
                   </Link>
                 )}
               </div>
@@ -191,7 +202,7 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
             {currentEvent.proposal && (
               <div className="p-3 bg-paper-2 border border-line mt-3 space-y-1 font-sans text-secondary">
                 <div className="font-mono text-meta font-semibold uppercase text-ink-500">
-                  Assistant Recommendation ({currentEvent.proposal.id})
+                  {locale === 'am' ? 'የረዳት የውሳኔ ሃሳብ' : locale === 'om' ? 'Yaada Gargaaraa' : 'Assistant Recommendation'} ({currentEvent.proposal.id})
                 </div>
                 <div className="font-semibold text-ink-900">
                   {currentEvent.proposal.title}
@@ -200,7 +211,7 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
                   {currentEvent.proposal.reasoning}
                 </div>
                 <div className="text-meta font-mono text-spruce-700 font-semibold pt-1">
-                  Status: {currentEvent.proposal.status} ({currentEvent.proposal.votes})
+                  {locale === 'am' ? 'ሁኔታ:' : locale === 'om' ? 'Haala:' : 'Status:'} {currentEvent.proposal.status} ({currentEvent.proposal.votes})
                 </div>
               </div>
             )}
@@ -211,10 +222,10 @@ export function RoundPlayer({ demoData, className = '' }: RoundPlayerProps) {
         <div className="bg-paper-1 border border-line p-5">
           <div className="flex justify-between items-center mb-3">
             <span className="font-mono text-meta font-semibold uppercase text-ink-500">
-              Verified Append-Only Tape
+              {locale === 'am' ? 'የተረጋገጠ የማይበረዝ ቴፕ' : locale === 'om' ? 'Sanjata Mirkanaa\'e' : 'Verified Append-Only Tape'}
             </span>
             <span className="text-meta font-mono text-ink-500">
-              {tapeEntries.length} entries recorded
+              {tapeEntries.length} {locale === 'am' ? 'ምዝገባዎች' : locale === 'om' ? 'galmee' : 'entries recorded'}
             </span>
           </div>
 

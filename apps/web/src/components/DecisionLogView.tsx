@@ -12,6 +12,8 @@ import {
   Stamp,
   Icon,
 } from './ui';
+import { useLocale } from '../lib/i18n';
+import { decisionLogTranslations } from '../lib/app-translations';
 
 interface DecisionLogViewProps {
   decisions: DecisionRecordView[];
@@ -24,6 +26,8 @@ export function DecisionLogView({
   decisions,
   isLoading = false,
 }: DecisionLogViewProps) {
+  const locale = useLocale();
+  const c = decisionLogTranslations[locale] || decisionLogTranslations.en;
   const [activeFilter, setActiveFilter] = React.useState<FilterType>('all');
   const [pageSize, setPageSize] = React.useState(25);
   const [isCheckSheetOpen, setIsCheckSheetOpen] = React.useState(false);
@@ -190,14 +194,14 @@ export function DecisionLogView({
     };
   });
 
-  const statusSentence = `${decisions.length} entries. ${lastCheckedText ? `Last checked ${lastCheckedText}.` : 'Cryptographically verified.'}`;
+  const statusSentence = c.statusSentence(decisions.length);
 
   if (isLoading) {
     return (
       <div className="select-none">
         <PageHeader
-          title="Record"
-          statusSentence="Loading append-only record..."
+          title={c.title}
+          statusSentence={c.loadingStatus}
         />
         <div className="bg-paper-1 border border-line p-6 space-y-6">
           {[...Array(8)].map((_, i) => (
@@ -215,11 +219,11 @@ export function DecisionLogView({
   return (
     <div className="select-none">
       <PageHeader
-        title="Record"
+        title={c.title}
         statusSentence={statusSentence}
         action={
           <Button variant="primary" size="md" onClick={handleRunCheck}>
-            Check the record
+            {c.checkRecordBtn}
           </Button>
         }
       />
@@ -228,10 +232,10 @@ export function DecisionLogView({
       <div className="flex border-b border-line mb-6 overflow-x-auto">
         {(
           [
-            { id: 'all', label: 'All' },
-            { id: 'payments', label: 'Payments' },
-            { id: 'decisions', label: 'Decisions' },
-            { id: 'payouts', label: 'Payouts' },
+            { id: 'all', label: c.filterAll },
+            { id: 'payments', label: c.filterPayments },
+            { id: 'decisions', label: c.filterDecisions },
+            { id: 'payouts', label: c.filterPayouts },
           ] as const
         ).map((tab) => {
           const isActive = activeFilter === tab.id;
@@ -258,11 +262,11 @@ export function DecisionLogView({
       {/* Tape Timeline */}
       <div className="bg-paper-1 border border-line p-6 mb-6">
         <div className="font-mono text-meta font-semibold text-ink-500 uppercase tracking-wider mb-4">
-          TAPE
+          {c.tapeTitle}
         </div>
         {tapeEntries.length === 0 ? (
           <p className="text-secondary text-ink-500 py-4">
-            No entries found matching this filter.
+            {c.noEntries}
           </p>
         ) : (
           <Tape entries={tapeEntries} />
@@ -277,7 +281,7 @@ export function DecisionLogView({
             onClick={() => setPageSize((prev) => prev + 25)}
             className="text-secondary text-spruce-700 hover:text-ink-900 font-medium underline"
           >
-            Show older ({filteredDecisions.length - visibleDecisions.length} more)
+            {c.showOlder(filteredDecisions.length - visibleDecisions.length)}
           </button>
         </div>
       )}
@@ -286,13 +290,13 @@ export function DecisionLogView({
       <Sheet
         isOpen={isCheckSheetOpen}
         onClose={() => setIsCheckSheetOpen(false)}
-        title="Check the record"
+        title={c.sheetTitle}
       >
         <div className="space-y-6">
           {isChecking ? (
             <div className="space-y-4 py-4 animate-pulse">
               <div className="font-mono text-secondary text-ink-700">
-                Checking hash chain and cryptographic signatures...
+                {c.checkingMessage}
               </div>
               <div className="h-2 bg-spruce-100 rounded-none overflow-hidden">
                 <div className="h-full bg-spruce-700 w-1/2 animate-[revalidate_1.5s_infinite_linear]" />
@@ -304,38 +308,38 @@ export function DecisionLogView({
             <div className="space-y-5">
               <div className="flex items-center justify-between gap-4">
                 <span className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-                  RESULT
+                  {c.resultTitle}
                 </span>
                 {verifyResult.ok ? (
-                  <Stamp text="VERIFIED" animated={true} />
+                  <Stamp text={c.verifiedStamp} animated={true} />
                 ) : (
                   <div className="inline-flex items-center gap-1.5 text-brick-700 font-semibold text-meta">
                     <Icon name="error" size={18} ariaHidden={true} />
-                    <span>BROKEN</span>
+                    <span>{c.brokenStamp}</span>
                   </div>
                 )}
               </div>
 
               {verifyResult.ok ? (
                 <p className="font-sans text-lead font-normal text-ink-900 leading-snug">
-                  The record is intact. {decisions.length} entries, checked just now.
+                  {c.intactMessage(decisions.length)}
                 </p>
               ) : (
                 <p className="font-sans text-lead font-semibold text-brick-700 leading-snug">
-                  The record changed at entry #{verifyResult.brokenIndex}. Do not rely on anything after it.
+                  {c.brokenMessage(verifyResult.brokenIndex || 0)}
                 </p>
               )}
 
               {/* Ruled detail rows */}
               <div className="border border-line divide-y divide-line bg-paper-0 font-sans text-secondary">
                 <div className="flex justify-between items-center px-4 py-2.5">
-                  <span className="text-ink-500">First entry</span>
+                  <span className="text-ink-500">{c.firstEntryLabel}</span>
                   <span className="text-ink-900 font-medium">
                     {verifyResult.firstEntryText}
                   </span>
                 </div>
                 <div className="flex justify-between items-center px-4 py-2.5">
-                  <span className="text-ink-500">Last entry</span>
+                  <span className="text-ink-500">{c.lastEntryLabel}</span>
                   <span className="text-ink-900 font-medium">
                     {verifyResult.lastEntryText}
                   </span>
@@ -345,7 +349,7 @@ export function DecisionLogView({
               {/* Fingerprint of the whole record */}
               <div>
                 <label className="block font-mono text-meta font-medium text-ink-500 uppercase tracking-wider mb-1.5">
-                  Fingerprint of the whole record:
+                  {c.fingerprintLabel}
                 </label>
                 <div className="flex items-center gap-2 p-3 bg-paper-2 border border-line">
                   <span className="font-mono text-[13px] text-ink-900 break-all select-all flex-1">
@@ -358,7 +362,7 @@ export function DecisionLogView({
                     }
                     className="text-spruce-700 hover:text-ink-900 underline text-meta font-sans font-medium whitespace-nowrap"
                   >
-                    {copiedFingerprint ? 'Copied' : 'Copy'}
+                    {copiedFingerprint ? c.copied : c.copyFingerprint}
                   </button>
                 </div>
               </div>
@@ -369,7 +373,11 @@ export function DecisionLogView({
                   href="/proof"
                   className="text-spruce-700 hover:text-ink-900 underline font-medium"
                 >
-                  How this check works &gt;&gt;
+                  {locale === 'am'
+                    ? 'ይህ ፍተሻ እንዴት እንደሚሰራ ይመልከቱ >>'
+                    : locale === 'om'
+                    ? 'Qorannoon kun akkamitti akka hojjetu >>'
+                    : 'How this check works >>'}
                 </a>
               </div>
 
@@ -380,7 +388,7 @@ export function DecisionLogView({
                   fullWidth={true}
                   onClick={() => setIsCheckSheetOpen(false)}
                 >
-                  Close
+                  {locale === 'am' ? 'ዝጋ' : locale === 'om' ? 'Cufi' : 'Close'}
                 </Button>
               </div>
             </div>

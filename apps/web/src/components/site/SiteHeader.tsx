@@ -3,23 +3,13 @@
 
 import React from 'react';
 import { Wordmark, Button, Icon, Sheet, Link } from '../ui';
-import { getLocale, setGlobalLocale, type Locale } from '../../lib/i18n';
+import { useLocale, setGlobalLocale, type Locale } from '../../lib/i18n';
+import { siteHeaderTranslations } from '../../lib/translations';
 
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [currentLocale, setCurrentLocale] = React.useState<Locale>('en');
-
-  React.useEffect(() => {
-    setCurrentLocale(getLocale());
-  }, []);
-
-  const navLinks = [
-    { label: 'How it works', href: '/how-it-works' },
-    { label: 'Proof', href: '/proof' },
-    { label: 'Safety', href: '/safety' },
-    { label: 'Evidence', href: '/evidence' },
-    { label: 'Open source', href: '/open-source' },
-  ];
+  const locale = useLocale();
+  const copy = siteHeaderTranslations[locale] || siteHeaderTranslations.en;
 
   return (
     <>
@@ -31,7 +21,7 @@ export function SiteHeader() {
 
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-secondary text-ink-700 font-sans">
-            {navLinks.map((item) => (
+            {copy.navLinks.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
@@ -45,7 +35,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-3">
           {/* Quick Language Toggle */}
-          <div className="hidden lg:flex items-center gap-1 text-meta text-ink-500 mr-1" aria-label="Language">
+          <div className="flex items-center gap-1 text-meta text-ink-500 mr-1" aria-label="Language selector">
             {(
               [
                 { id: 'en', label: 'EN', title: 'English' },
@@ -56,12 +46,9 @@ export function SiteHeader() {
               <button
                 key={loc.id}
                 type="button"
-                onClick={() => {
-                  setCurrentLocale(loc.id);
-                  setGlobalLocale(loc.id);
-                }}
+                onClick={() => setGlobalLocale(loc.id)}
                 className={`px-1.5 py-0.5 text-[11px] font-mono rounded-sm transition-colors ${
-                  currentLocale === loc.id
+                  locale === loc.id
                     ? 'font-bold text-ink-900 bg-paper-2 border border-line'
                     : 'text-ink-500 hover:text-ink-900'
                 }`}
@@ -76,14 +63,14 @@ export function SiteHeader() {
             href="/sandbox"
             className="hidden sm:inline-flex items-center justify-center px-4 py-2 bg-spruce-700 text-paper-1 text-secondary font-medium hover:bg-[#104032] transition-colors rounded-sm"
           >
-            Try the sandbox
+            {copy.trySandbox}
           </Link>
 
           <Link
             href="/app"
             className="inline-flex items-center justify-center px-3 py-2 border border-ink-900 text-ink-900 text-secondary font-medium hover:bg-paper-2 transition-colors rounded-sm"
           >
-            Enter app
+            {copy.enterApp}
           </Link>
 
           {/* Mobile Menu Button */}
@@ -102,11 +89,11 @@ export function SiteHeader() {
       <Sheet
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
-        title="Navigation"
+        title={copy.navigationSheetTitle}
       >
         <div className="space-y-6 pt-2 select-none">
           <nav className="divide-y divide-line border-t border-b border-line font-sans">
-            {navLinks.map((item) => (
+            {copy.navLinks.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
@@ -123,13 +110,13 @@ export function SiteHeader() {
               href="/sandbox"
               className="w-full flex items-center justify-center py-3 bg-spruce-700 text-paper-1 font-medium text-body rounded-sm"
             >
-              Try the sandbox
+              {copy.trySandbox}
             </Link>
             <Link
               href="/app"
               className="w-full flex items-center justify-center py-3 border border-ink-900 text-ink-900 font-medium text-body rounded-sm"
             >
-              Enter app (Sign in)
+              {copy.enterApp}
             </Link>
           </div>
         </div>

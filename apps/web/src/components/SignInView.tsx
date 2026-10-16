@@ -10,7 +10,7 @@ import {
   Link,
   Banner,
 } from './ui';
-import { t, setGlobalLocale, getLocale, Locale } from '../lib/i18n';
+import { t, setGlobalLocale, useLocale, Locale } from '../lib/i18n';
 
 interface SignInViewProps {
   onSignInSuccess: (email: string) => void;
@@ -25,11 +25,7 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
   const [loading, setLoading] = React.useState(false);
   const [countdown, setCountdown] = React.useState(42);
   const [rateLimitedMinutes, setRateLimitedMinutes] = React.useState<number | null>(null);
-  const [language, setLanguage] = React.useState<Locale>('en');
-
-  React.useEffect(() => {
-    setLanguage(getLocale());
-  }, []);
+  const language = useLocale();
 
   React.useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -45,7 +41,13 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
     e.preventDefault();
     setError(null);
     if (!email || !email.includes('@')) {
-      setError('Please enter a valid email address.');
+      setError(
+        language === 'am'
+          ? 'እባክዎ ትክክለኛ የኢሜይል አድራሻ ያስገቡ።'
+          : language === 'om'
+          ? 'Moo teessoo imeelii sirrii galchaa.'
+          : 'Please enter a valid email address.'
+      );
       return;
     }
     setLoading(true);
@@ -60,7 +62,7 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
     const codeToVerify = submittedCode || code;
     setError(null);
     if (codeToVerify.trim().length !== 6) {
-      setError('That code does not match. Check the newest email and try again.');
+      setError(t('auth.code_wrong', undefined, language));
       return;
     }
     setLoading(true);
@@ -157,7 +159,6 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setLanguage('en');
                   setGlobalLocale('en');
                 }}
                 className={`underline underline-offset-2 ${
@@ -170,7 +171,6 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setLanguage('am');
                   setGlobalLocale('am');
                 }}
                 className={`underline underline-offset-2 ${
@@ -183,7 +183,6 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setLanguage('om');
                   setGlobalLocale('om');
                 }}
                 className={`underline underline-offset-2 ${
@@ -196,9 +195,13 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
           </div>
 
           <div className="flex items-center justify-between text-meta text-ink-500 pt-2">
-            <Link href="/terms">Terms</Link>
-            <span>and</span>
-            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">
+              {language === 'am' ? 'የአጠቃቀም ደንቦች' : language === 'om' ? 'Qajeelfama' : 'Terms'}
+            </Link>
+            <span>{language === 'am' ? 'እና' : language === 'om' ? 'fi' : 'and'}</span>
+            <Link href="/privacy">
+              {language === 'am' ? 'የግላዊነት ፖሊሲ' : language === 'om' ? 'Imaammata' : 'Privacy'}
+            </Link>
           </div>
         </form>
       ) : (
@@ -255,7 +258,7 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
             onClick={onCancel}
             className="text-secondary text-ink-500 underline underline-offset-2 hover:text-ink-900"
           >
-            Cancel
+            {t('common.cancel', undefined, language)}
           </button>
         </div>
       )}

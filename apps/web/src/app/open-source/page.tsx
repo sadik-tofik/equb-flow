@@ -4,34 +4,37 @@
 import React from 'react';
 import { SiteHeader } from '../../components/site/SiteHeader';
 import { SiteFooter } from '../../components/site/SiteFooter';
-import { PageHeader, CodeBlock, Link } from '../../components/ui';
+import { PageHeader, CodeBlock } from '../../components/ui';
+import { useLocale } from '../../lib/i18n';
+import { openSourceTranslations } from '../../lib/public-page-translations';
 
 export default function OpenSourcePage() {
+  const locale = useLocale();
+  const c = openSourceTranslations[locale];
+
   return (
     <div className="min-h-screen bg-paper-0 text-ink-900 font-sans selection:bg-spruce-100 selection:text-spruce-700">
       <SiteHeader />
 
       <main className="max-w-4xl mx-auto px-5 py-8 space-y-12">
         <PageHeader
-          monoLabel="Apache-2.0 License · Public Repository"
-          title="Open source software."
-          statusSentence="Reusable TypeScript libraries and deterministic safety gates for financial agent coordination."
+          monoLabel={c.mono}
+          title={c.title}
+          statusSentence={c.statusSentence}
         />
 
         {/* Repository & License Details */}
         <section className="bg-paper-1 border border-line p-6 space-y-3 font-sans text-secondary">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="font-semibold text-ink-900 text-lead">
-              Repository: github.com/sadik-tofik/equb-flow
+              {c.repoLabel}
             </span>
             <span className="font-mono text-meta text-spruce-700 font-semibold bg-spruce-100 px-2 py-0.5">
-              Apache-2.0
+              {c.licenseLabel}
             </span>
           </div>
           <p className="text-ink-700 leading-relaxed">
-            EqubFlow is licensed under the Apache 2.0 license. The core domain package
-            is completely independent of blockchain I/O or cloud services, allowing
-            any team building rotating savings or group payment agents to reuse its logic.
+            {c.repoDesc}
           </p>
           <div className="pt-2">
             <a
@@ -40,7 +43,7 @@ export default function OpenSourcePage() {
               rel="noopener noreferrer"
               className="text-spruce-700 underline font-semibold"
             >
-              View source on GitHub &gt;&gt;
+              {c.viewOnGithub}
             </a>
           </div>
         </section>
@@ -48,76 +51,35 @@ export default function OpenSourcePage() {
         {/* Four Reusable Parts */}
         <section className="space-y-4">
           <h2 className="font-display text-h3 font-medium text-ink-900">
-            Four reusable packages
+            {c.fourPackagesTitle}
           </h2>
 
           <div className="border border-line divide-y divide-line bg-paper-1 font-sans text-secondary">
-            <div className="p-5 space-y-1">
-              <span className="font-mono text-meta text-spruce-700 font-semibold uppercase">
-                1. packages/domain/src/classifier.ts
-              </span>
-              <h3 className="font-semibold text-ink-900 text-body">
-                The Payment Classifier
-              </h3>
-              <p className="text-ink-700 leading-relaxed">
-                A pure TypeScript engine that takes an observed transfer and round
-                expectations, returning deterministic classification (exact match,
-                short amount, duplicate transfer, wrong currency, or unknown sender)
-                with exact integer base units.
-              </p>
-            </div>
-
-            <div className="p-5 space-y-1">
-              <span className="font-mono text-meta text-spruce-700 font-semibold uppercase">
-                2. packages/domain/src/decision-chain.ts
-              </span>
-              <h3 className="font-semibold text-ink-900 text-body">
-                The Record Verifier
-              </h3>
-              <p className="text-ink-700 leading-relaxed">
-                Deterministic RFC 8785 JSON canonicalization (JCS) paired with
-                SHA-256 hash chaining. Can run in Node.js, browsers via WebCrypto,
-                or standalone Python scripts without discrepancies.
-              </p>
-            </div>
-
-            <div className="p-5 space-y-1">
-              <span className="font-mono text-meta text-spruce-700 font-semibold uppercase">
-                3. packages/domain/src/authorizer.ts
-              </span>
-              <h3 className="font-semibold text-ink-900 text-body">
-                The Payout Authorizer
-              </h3>
-              <p className="text-ink-700 leading-relaxed">
-                Deterministic safety gate that evaluates round status, pause state,
-                and covered contributions. Forbids duplicate payouts, wrong recipients,
-                or unauthorized fund movements regardless of agent prompt hallucinations.
-              </p>
-            </div>
-
-            <div className="p-5 space-y-1">
-              <span className="font-mono text-meta text-spruce-700 font-semibold uppercase">
-                4. packages/db/migrations & RLS tests
-              </span>
-              <h3 className="font-semibold text-ink-900 text-body">
-                Database Permission & RLS Suite
-              </h3>
-              <p className="text-ink-700 leading-relaxed">
-                PostgreSQL schema, append-only rules for decision records, and
-                row-level security policies enforcing complete tenant isolation
-                between groups.
-              </p>
-            </div>
+            {c.packages.map((pkg, idx) => (
+              <div key={idx} className="p-5 space-y-1">
+                <span className="font-mono text-meta text-spruce-700 font-semibold uppercase">
+                  {pkg.path}
+                </span>
+                <h3 className="font-semibold text-ink-900 text-body">
+                  {pkg.name}
+                </h3>
+                <p className="text-ink-700 leading-relaxed">
+                  {pkg.desc}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* How to run the tests */}
         <section className="space-y-4">
           <h2 className="font-display text-h3 font-medium text-ink-900">
-            How to run the tests
+            {locale === 'am' ? 'የፈተና ስብስቡን እንዴት ማስኬድ ይቻላል' : locale === 'om' ? 'Qorannoowwan akkamitti akka geggeeffamu' : 'How to run the tests'}
           </h2>
           <p className="text-secondary text-ink-700">
-            Run the comprehensive Vitest test suite with a single command:
+            {locale === 'am' ? 'የተሟላውን የVitest ፈተና በአንድ ትዕዛዝ ያሂዱ:' :
+             locale === 'om' ? 'Qorannoowwan Vitest guutuu ajaja tokkoon geggeessaa:' :
+             'Run the comprehensive Vitest test suite with a single command:'}
           </p>
           <CodeBlock
             filePath="Terminal"
@@ -136,12 +98,12 @@ pnpm --filter @equbflow/domain test`}
         {/* How to contribute */}
         <section className="space-y-4">
           <h2 className="font-display text-h3 font-medium text-ink-900">
-            How to contribute
+            {locale === 'am' ? 'አስተዋጽዖ እንዴት ማበርከት ይቻላል' : locale === 'om' ? 'Akkamitti hirmaachuun danda\'ama' : 'How to contribute'}
           </h2>
           <p className="text-secondary text-ink-700 leading-relaxed">
-            We welcome bug reports, threat model expansions, and contract optimizations.
-            Please review our threat model in <code className="font-mono">docs/03-Threat-Model.md</code> before
-            submitting pull requests. Every pull request must include tests for touched requirements.
+            {locale === 'am' ? 'የስህተት ጥቆማዎችን፣ የስጋት ሞዴል ማሻሻያዎችን እና የስማርት ኮንትራት ማሻሻያዎችን በደስታ እንቀበላለን። እባክዎ ለውጥ ከማቅረብዎ በፊት በ docs/03-Threat-Model.md ውስጥ ያለውን የስጋት ሞዴል ይመልከቱ።' :
+             locale === 'om' ? 'Gabaasa dogoggoraa, dabalata moodeela sodaawwanii fi fooyya\'iinsa heeraa gammachuun simanna. Mee yaada jijjiirraa dhiyeessuu keessan dura moodeela docs/03-Threat-Model.md keessa jiru ilaalaa.' :
+             'We welcome bug reports, threat model expansions, and contract optimizations. Please review our threat model in docs/03-Threat-Model.md before submitting pull requests. Every pull request must include tests for touched requirements.'}
           </p>
         </section>
       </main>

@@ -4,6 +4,8 @@
 import React from 'react';
 import type { DiscrepancyView } from '../lib/types';
 import { PageHeader, Slip, SlipSkeleton, EmptyState, StatusChip, Button } from './ui';
+import { useLocale } from '../lib/i18n';
+import { discrepancyLedgerTranslations } from '../lib/app-translations';
 
 interface DiscrepancyLedgerViewProps {
   discrepancies: DiscrepancyView[];
@@ -16,12 +18,15 @@ export function DiscrepancyLedgerView({
   isLoading = false,
   onNavigateToInbox,
 }: DiscrepancyLedgerViewProps) {
+  const locale = useLocale();
+  const c = discrepancyLedgerTranslations[locale] || discrepancyLedgerTranslations.en;
+
   if (isLoading) {
     return (
       <div className="select-none">
         <PageHeader
-          title="Differences"
-          statusSentence="Checking the ledger for differences..."
+          title={c.title}
+          statusSentence={c.loadingStatus}
         />
         <div className="space-y-4">
           <SlipSkeleton />
@@ -41,85 +46,101 @@ export function DiscrepancyLedgerView({
   const getDifferenceTitle = (disc: DiscrepancyView): string => {
     if (disc.ownerAlias) {
       if (disc.deltaDisplay.startsWith('-')) {
-        return `${disc.ownerAlias}'s payment was short`;
+        return locale === 'am'
+          ? `የ${disc.ownerAlias} ክፍያ ጎድሏል`
+          : locale === 'om'
+          ? `Kaffaltiin ${disc.ownerAlias} hir'ateera`
+          : `${disc.ownerAlias}'s payment was short`;
       }
       if (disc.deltaDisplay.startsWith('+')) {
-        return `${disc.ownerAlias}'s payment was over`;
+        return locale === 'am'
+          ? `የ${disc.ownerAlias} ክፍያ በልጧል`
+          : locale === 'om'
+          ? `Kaffaltiin ${disc.ownerAlias} caaleera`
+          : `${disc.ownerAlias}'s payment was over`;
       }
       if (disc.kind === 'duplicate_transfer') {
-        return `${disc.ownerAlias}'s payment arrived twice`;
+        return locale === 'am'
+          ? `የ${disc.ownerAlias} ክፍያ ሁለት ጊዜ ደርሷል`
+          : locale === 'om'
+          ? `Kaffaltiin ${disc.ownerAlias} al lama dhufe`
+          : `${disc.ownerAlias}'s payment arrived twice`;
       }
-      return `${disc.ownerAlias}'s payment had a difference`;
+      return locale === 'am'
+        ? `የ${disc.ownerAlias} ክፍያ ልዩነት ነበረበት`
+        : locale === 'om'
+        ? `Kaffaltiin ${disc.ownerAlias} garaagarummaa qaba`
+        : `${disc.ownerAlias}'s payment had a difference`;
     }
 
     switch (disc.kind) {
       case 'short_amount':
-        return 'A payment was short';
+        return locale === 'am' ? 'ክፍያው ጎድሏል' : locale === 'om' ? 'Kaffaltiin hir\'ateera' : 'A payment was short';
       case 'excess_amount':
-        return 'A payment was over';
+        return locale === 'am' ? 'ክፍያው በልጧል' : locale === 'om' ? 'Kaffaltiin caaleera' : 'A payment was over';
       case 'unknown_sender':
-        return 'A payment came from an unknown sender';
+        return locale === 'am' ? 'ክፍያው ካልታወቀ ላኪ መጣ' : locale === 'om' ? 'Kaffaltiin nama hin beekamne irraa dhufe' : 'A payment came from an unknown sender';
       case 'wrong_currency':
-        return 'A payment used a different currency';
+        return locale === 'am' ? 'ክፍያው የተሳሳተ ገንዘብ ተጠቀመ' : locale === 'om' ? 'Kaffaltiin qarshii biraa fayyadame' : 'A payment used a different currency';
       case 'duplicate_transfer':
-        return 'A payment arrived twice';
+        return locale === 'am' ? 'ክፍያው ሁለት ጊዜ ደርሷል' : locale === 'om' ? 'Kaffaltiin al lama dhufe' : 'A payment arrived twice';
       case 'wrong_destination':
-        return 'A payment was sent to the wrong place';
+        return locale === 'am' ? 'ክፍያው ወደ ተሳሳተ ቦታ ተልኳል' : locale === 'om' ? 'Kaffaltiin bakka dogoggoraatti ergame' : 'A payment was sent to the wrong place';
       default:
-        return 'A payment had a difference';
+        return locale === 'am' ? 'በክፍያው ላይ ልዩነት ነበር' : locale === 'om' ? 'Kaffaltiin garaagarummaa qaba' : 'A payment had a difference';
     }
   };
 
   const getDiffChip = (disc: DiscrepancyView) => {
     if (disc.status === 'resolved' || disc.status === 'refunded') {
-      return <StatusChip status="verified" label="Resolved" />;
+      return <StatusChip status="verified" label={c.resolved} />;
     }
     if (disc.deltaDisplay.startsWith('-')) {
-      return <StatusChip status="problem" label="Short" />;
+      return <StatusChip status="problem" label={c.short} />;
     }
     if (disc.deltaDisplay.startsWith('+')) {
-      return <StatusChip status="attention" label="Over" />;
+      return <StatusChip status="attention" label={c.over} />;
     }
     if (disc.kind === 'wrong_currency') {
-      return <StatusChip status="problem" label="Wrong currency" />;
+      return <StatusChip status="problem" label={c.wrongCurrency} />;
     }
     if (disc.kind === 'unknown_sender') {
-      return <StatusChip status="problem" label="Unknown sender" />;
+      return <StatusChip status="problem" label={c.unknownSender} />;
     }
     if (disc.kind === 'duplicate_transfer') {
-      return <StatusChip status="attention" label="Duplicate" />;
+      return <StatusChip status="attention" label={c.duplicate} />;
     }
-    return <StatusChip status="attention" label="Attention" />;
+    return <StatusChip status="attention" label={c.attention} />;
   };
 
   const getDeltaSummary = (disc: DiscrepancyView) => {
     if (disc.deltaDisplay.startsWith('-')) {
       const clean = disc.deltaDisplay.slice(1);
-      return `Short by ${clean} USDC`;
+      return c.shortBy(clean);
     }
     if (disc.deltaDisplay.startsWith('+')) {
       const clean = disc.deltaDisplay.slice(1);
-      return `Over by ${clean} USDC`;
+      return c.overBy(clean);
     }
-    return `Difference of ${disc.deltaDisplay} USDC`;
+    return c.diffOf(disc.deltaDisplay);
   };
 
   const statusSentence =
     openDiscrepancies.length === 0
-      ? 'No differences. Every payment matched.'
-      : `${openDiscrepancies.length} payment${openDiscrepancies.length === 1 ? '' : 's'} need attention.`;
+      ? c.noDifferences
+      : c.needAttention(openDiscrepancies.length);
 
   return (
     <div className="select-none">
-      <PageHeader title="Differences" statusSentence={statusSentence} />
+      <PageHeader title={c.title} statusSentence={statusSentence} />
 
       <p className="font-sans text-meta text-ink-500 italic mb-6">
-        Small note: We show every difference exactly, to the last unit.
+        {c.smallNote}
       </p>
 
       {discrepancies.length === 0 ? (
         <EmptyState
-          sentence="No differences. Every payment matched."
+          sentence={c.noDifferences}
           illustrationType="ledger"
         />
       ) : (
@@ -141,10 +162,10 @@ export function DiscrepancyLedgerView({
                       <div className="space-y-3">
                         <div className="font-sans text-secondary text-ink-700 leading-snug">
                           <strong className="text-ink-900 font-semibold">
-                            What happens now:{' '}
+                            {c.whatHappensNow}{' '}
                           </strong>
                           {disc.plainExplanation ||
-                            "The group's assistant suggests a resolution."}
+                            c.assistantSuggestsResolution}
                         </div>
                         {onNavigateToInbox && (
                           <div>
@@ -153,7 +174,7 @@ export function DiscrepancyLedgerView({
                               size="sm"
                               onClick={onNavigateToInbox}
                             >
-                              See the decision
+                              {c.seeDecision}
                             </Button>
                           </div>
                         )}
@@ -166,7 +187,7 @@ export function DiscrepancyLedgerView({
                     <div className="border border-line divide-y divide-line bg-paper-0 my-3 font-mono text-meta">
                       <div className="flex justify-between items-center px-3 py-2">
                         <span className="text-ink-500 font-sans text-secondary">
-                          Expected
+                          {c.expected}
                         </span>
                         <span className="text-ink-900 font-medium tabular">
                           {disc.expectedDisplay} USDC
@@ -174,7 +195,7 @@ export function DiscrepancyLedgerView({
                       </div>
                       <div className="flex justify-between items-center px-3 py-2">
                         <span className="text-ink-500 font-sans text-secondary">
-                          Received
+                          {c.received}
                         </span>
                         <span className="text-ink-900 font-medium tabular">
                           {disc.observedDisplay} USDC
@@ -196,7 +217,7 @@ export function DiscrepancyLedgerView({
           {resolvedDiscrepancies.length > 0 && (
             <div className="pt-4">
               <h3 className="font-sans text-lead font-semibold text-ink-900 mb-4">
-                Resolved
+                {c.resolvedSection}
               </h3>
               <div className="space-y-4">
                 {resolvedDiscrepancies.map((disc, idx) => {
@@ -210,12 +231,12 @@ export function DiscrepancyLedgerView({
                       slipNumber={slipNum}
                       title={title}
                       isStamped={true}
-                      stampText="RESOLVED"
+                      stampText={c.resolvedStamp}
                     >
                       <div className="border border-line divide-y divide-line bg-paper-0 my-3 font-mono text-meta">
                         <div className="flex justify-between items-center px-3 py-2">
                           <span className="text-ink-500 font-sans text-secondary">
-                            Expected
+                            {c.expected}
                           </span>
                           <span className="text-ink-900 font-medium tabular">
                             {disc.expectedDisplay} USDC
@@ -223,7 +244,7 @@ export function DiscrepancyLedgerView({
                         </div>
                         <div className="flex justify-between items-center px-3 py-2">
                           <span className="text-ink-500 font-sans text-secondary">
-                            Received
+                            {c.received}
                           </span>
                           <span className="text-ink-900 font-medium tabular">
                             {disc.observedDisplay} USDC

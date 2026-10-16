@@ -12,7 +12,7 @@ import {
   Icon,
   IconName,
 } from './ui';
-import { t } from '../lib/i18n';
+import { t, useLocale, setGlobalLocale } from '../lib/i18n';
 
 export type NavItemKey =
   | 'home'
@@ -45,6 +45,7 @@ export function AppShell({
   children,
   isRevalidating = false,
 }: AppShellProps) {
+  const locale = useLocale();
   const [isOffline, setIsOffline] = React.useState(false);
 
   React.useEffect(() => {
@@ -70,45 +71,45 @@ export function AppShell({
   if (group.paused) {
     banners.push({
       type: 'paused',
-      message: t('banner.paused'),
+      message: t('banner.paused', undefined, locale),
     });
   }
   if (isOffline) {
     banners.push({
       type: 'offline',
-      message: t('banner.offline'),
+      message: t('banner.offline', undefined, locale),
     });
   }
   if (group.mode === 'simulated' && banners.length < 2) {
     banners.push({
       type: 'simulated',
-      message: t('badge.simulated'),
+      message: t('badge.simulated', undefined, locale),
     });
   }
   if (group.accelerated && banners.length < 2) {
     banners.push({
       type: 'accelerated',
-      message: `${t('badge.accelerated')} (${group.cadenceText})`,
+      message: `${t('badge.accelerated', undefined, locale)} (${group.cadenceText})`,
     });
   }
 
   const primaryNavItems: { key: NavItemKey; label: string; icon: IconName; badge?: number }[] = [
-    { key: 'home', label: t('nav.home'), icon: 'home' },
-    { key: 'rounds', label: t('nav.rounds'), icon: 'rounds' },
-    { key: 'inbox', label: t('nav.inbox'), icon: 'inbox', badge: inboxBadgeCount },
-    { key: 'record', label: t('nav.record'), icon: 'record' },
+    { key: 'home', label: t('nav.home', undefined, locale), icon: 'home' },
+    { key: 'rounds', label: t('nav.rounds', undefined, locale), icon: 'rounds' },
+    { key: 'inbox', label: t('nav.inbox', undefined, locale), icon: 'inbox', badge: inboxBadgeCount },
+    { key: 'record', label: t('nav.record', undefined, locale), icon: 'record' },
   ];
 
   const desktopNavItems: { key: NavItemKey; label: string; icon: IconName; badge?: number }[] = [
     ...primaryNavItems,
-    { key: 'differences', label: t('nav.differences'), icon: 'difference' },
-    { key: 'receipts', label: t('nav.receipts'), icon: 'receipt' },
+    { key: 'differences', label: t('nav.differences', undefined, locale), icon: 'difference' },
+    { key: 'receipts', label: t('nav.receipts', undefined, locale), icon: 'receipt' },
   ];
 
   if (user.role === 'organizer') {
-    desktopNavItems.push({ key: 'organizer', label: t('nav.organizer'), icon: 'lock' });
+    desktopNavItems.push({ key: 'organizer', label: t('nav.organizer', undefined, locale), icon: 'lock' });
   }
-  desktopNavItems.push({ key: 'settings', label: t('nav.settings'), icon: 'refresh' });
+  desktopNavItems.push({ key: 'settings', label: t('nav.settings', undefined, locale), icon: 'refresh' });
 
   return (
     <div className="min-h-screen bg-paper-0 flex flex-col font-sans text-ink-900 selection:bg-spruce-100 selection:text-spruce-700">
@@ -130,6 +131,31 @@ export function AppShell({
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Quick Language Toggle */}
+          <div className="flex items-center gap-1 text-meta text-ink-500 mr-1" aria-label="Language selector">
+            {(
+              [
+                { id: 'en', label: 'EN', title: 'English' },
+                { id: 'am', label: 'አማ', title: 'አማርኛ' },
+                { id: 'om', label: 'OM', title: 'Afaan Oromoo' },
+              ] as const
+            ).map((loc) => (
+              <button
+                key={loc.id}
+                type="button"
+                onClick={() => setGlobalLocale(loc.id)}
+                className={`px-1.5 py-0.5 text-[11px] font-mono rounded-sm transition-colors ${
+                  locale === loc.id
+                    ? 'font-bold text-ink-900 bg-paper-2 border border-line'
+                    : 'text-ink-500 hover:text-ink-900'
+                }`}
+                title={loc.title}
+              >
+                {loc.label}
+              </button>
+            ))}
+          </div>
+
           {/* Test money badge */}
           <TestMoneyBadge />
 

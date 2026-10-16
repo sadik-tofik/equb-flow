@@ -18,6 +18,8 @@ import {
   Tape,
   TapeEntry,
 } from './ui';
+import { useLocale } from '../lib/i18n';
+import { groupHomeTranslations } from '../lib/translations';
 
 export interface GroupHomeViewProps {
   user: UserSession;
@@ -40,6 +42,9 @@ export function GroupHomeView({
   onNavigate,
   waitingForConfirmation = false,
 }: GroupHomeViewProps) {
+  const locale = useLocale();
+  const gh = groupHomeTranslations[locale] || groupHomeTranslations.en;
+
   const isPaid = obligation.state === 'paid';
   const isLate = obligation.state === 'late';
   const isRecipient = round.recipientAlias === user.alias;
@@ -80,7 +85,7 @@ export function GroupHomeView({
       {/* Page Header Pattern (Section A0 & A3) */}
       <PageHeader
         monoLabel={`No. 00${group.currentRoundNo || 1} · ${group.name}`}
-        title={`Round ${round.roundNo} of ${group.memberCount}`}
+        title={gh.roundOf(round.roundNo, group.memberCount)}
         statusSentence={round.statusText || group.statusText}
       />
 
@@ -88,9 +93,9 @@ export function GroupHomeView({
       {isCycleFinished ? (
         <Slip
           slipNumber="No. FINISHED"
-          title="The circle is complete"
+          title={gh.circleCompleteTitle}
           amount={round.potDisplay.replace(/ USDC$/, '')}
-          amountSubtext="All rounds have concluded successfully."
+          amountSubtext={gh.circleCompleteSub}
           isStamped={true}
           stampText="COMPLETED"
           actions={
@@ -99,20 +104,20 @@ export function GroupHomeView({
               fullWidth
               onClick={() => onNavigate('record')}
             >
-              See complete record
+              {gh.seeRecord}
             </Button>
           }
         />
       ) : isRecipient ? (
         <Slip
           slipNumber={`No. R${round.roundNo}-You`}
-          title="Your turn to receive"
+          title={gh.yourTurnTitle}
           amount={round.potDisplay.replace(/ USDC$/, '')}
-          amountSubtext="Paid out when everyone has paid."
+          amountSubtext={gh.yourTurnSub}
           actions={
             <div className="space-y-2 pt-1">
               <div className="flex justify-between items-center text-meta text-ink-700">
-                <span>Contributions collected:</span>
+                <span>{gh.contributionsCollected}</span>
                 <span className="font-semibold tabular">{paidCount} of {totalCount}</span>
               </div>
               <div className="flex items-center gap-1.5 w-full">
@@ -129,9 +134,9 @@ export function GroupHomeView({
       ) : waitingForConfirmation ? (
         <Slip
           slipNumber={`No. R${round.roundNo}-You`}
-          title="Contribution in transit"
+          title={gh.contribTransitTitle}
           amount={obligation.display.replace(/ USDC$/, '')}
-          amountSubtext="Sent. We are waiting for the network to confirm it."
+          amountSubtext={gh.contribTransitSub}
         >
           <div className="pt-2">
             <Tape entries={waitingTapeEntries} />
@@ -140,20 +145,20 @@ export function GroupHomeView({
       ) : isPaid ? (
         <Slip
           slipNumber={`No. R${round.roundNo}-You`}
-          title="Your contribution"
+          title={gh.yourContribTitle}
           amount={obligation.display.replace(/ USDC$/, '')}
-          amountSubtext={`Next: round ${round.roundNo + 1} opens soon.`}
+          amountSubtext={gh.yourContribSubPaid(round.roundNo)}
           isStamped={true}
           stampText="PAID"
           actions={
             <div className="flex items-center justify-between pt-1 text-meta">
-              <span className="text-spruce-700 font-medium">Receipt confirmed on chain</span>
+              <span className="text-spruce-700 font-medium">{gh.receiptConfirmed}</span>
               <button
                 type="button"
                 onClick={() => onNavigate('receipts')}
                 className="text-spruce-700 underline underline-offset-2 hover:text-[#104032]"
               >
-                Open receipt
+                {gh.openReceipt}
               </button>
             </div>
           }
@@ -161,43 +166,43 @@ export function GroupHomeView({
       ) : isLate ? (
         <Slip
           slipNumber={`No. R${round.roundNo}-You`}
-          title="Your contribution"
+          title={gh.yourContribTitle}
           amount={obligation.display.replace(/ USDC$/, '')}
-          amountSubtext="The group may still accept it if members vote to approve."
+          amountSubtext={gh.lateSub}
           actions={
             <Button
               variant="primary"
               fullWidth
               onClick={onPayClick}
             >
-              Pay my contribution
+              {gh.payBtn}
             </Button>
           }
         >
           <div className="flex items-center gap-2 mb-2">
-            <StatusChip status="problem" label="Late by 40 min" icon="error" />
+            <StatusChip status="problem" label={gh.lateChip} icon="error" />
           </div>
         </Slip>
       ) : (
         <Slip
           slipNumber={`No. R${round.roundNo}-You`}
-          title="Your contribution"
+          title={gh.yourContribTitle}
           amount={obligation.display.replace(/ USDC$/, '')}
-          amountSubtext={`Due by ${formatDeadline(obligation.deadlineAt)}.`}
+          amountSubtext={gh.dueByChip(formatDeadline(obligation.deadlineAt))}
           actions={
             <Button
               variant="primary"
               fullWidth
               onClick={onPayClick}
             >
-              Pay my contribution
+              {gh.payBtn}
             </Button>
           }
         >
           <div className="flex items-center gap-2 mb-2">
             <StatusChip
               status="attention"
-              label={`Due by ${formatDeadline(obligation.deadlineAt)}`}
+              label={gh.dueByChip(formatDeadline(obligation.deadlineAt))}
               icon="clock"
             />
           </div>
@@ -207,17 +212,17 @@ export function GroupHomeView({
       {/* THIS ROUND (ruled list, Section A3) */}
       <div className="bg-paper-1 border border-line p-5">
         <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-3">
-          This Round
+          {gh.thisRoundTitle}
         </div>
 
         <div className="border-t border-b border-line divide-y divide-line text-secondary">
           <div className="py-3 flex justify-between items-center">
-            <span className="text-ink-700">Pot goes to</span>
+            <span className="text-ink-700">{gh.potGoesTo}</span>
             <MemberMonogram nickname={round.recipientAlias} />
           </div>
 
           <div className="py-3 flex justify-between items-center">
-            <span className="text-ink-700">Paid so far</span>
+            <span className="text-ink-700">{gh.paidSoFar}</span>
             <div className="flex items-center gap-3">
               <span className="font-semibold text-ink-900 tabular">{paidCount} of {totalCount}</span>
               <div className="flex items-center gap-1 w-20">
@@ -232,7 +237,7 @@ export function GroupHomeView({
           </div>
 
           <div className="py-3 flex justify-between items-center">
-            <span className="text-ink-700">Next deadline</span>
+            <span className="text-ink-700">{gh.nextDeadline}</span>
             <span className="font-semibold text-ink-900">{formatDeadline(round.deadlineAt)}</span>
           </div>
         </div>
@@ -241,7 +246,7 @@ export function GroupHomeView({
       {/* THE CIRCLE (member roll, six rows, Section A3) */}
       <div className="bg-paper-1 border border-line p-5">
         <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-3">
-          The Circle Roll
+          {gh.circleRollTitle}
         </div>
 
         <div className="border-t border-b border-line divide-y divide-line">
@@ -256,18 +261,18 @@ export function GroupHomeView({
                   <MemberMonogram nickname={c.alias} index={idx} />
                   {isRecip && (
                     <span className="text-meta font-mono text-ink-500">
-                      receives this round
+                      {gh.receivesThisRound}
                     </span>
                   )}
                 </div>
 
                 <div>
                   {c.state === 'credited' ? (
-                    <StatusChip status="verified" label="Paid" icon="check-stamp" />
+                    <StatusChip status="verified" label={gh.chipPaid} icon="check-stamp" />
                   ) : c.state === 'late' ? (
-                    <StatusChip status="problem" label="Late" icon="error" />
+                    <StatusChip status="problem" label={gh.chipLate} icon="error" />
                   ) : (
-                    <StatusChip status="waiting" label="Waiting" icon="clock" />
+                    <StatusChip status="waiting" label={gh.chipWaiting} icon="clock" />
                   )}
                 </div>
               </div>
@@ -283,7 +288,7 @@ export function GroupHomeView({
           onClick={() => onNavigate('rounds')}
           className="text-spruce-700 underline underline-offset-2 hover:text-[#104032]"
         >
-          Rounds
+          {locale === 'am' ? 'ዙሮች' : locale === 'om' ? 'Marsaalee' : 'Rounds'}
         </button>
         <span className="text-ink-500">·</span>
         <button
@@ -291,7 +296,7 @@ export function GroupHomeView({
           onClick={() => onNavigate('inbox')}
           className="text-spruce-700 underline underline-offset-2 hover:text-[#104032]"
         >
-          Inbox
+          {locale === 'am' ? 'ውሳኔዎች' : locale === 'om' ? 'Murtiiwwan' : 'Inbox'}
         </button>
         <span className="text-ink-500">·</span>
         <button
@@ -299,7 +304,7 @@ export function GroupHomeView({
           onClick={() => onNavigate('record')}
           className="text-spruce-700 underline underline-offset-2 hover:text-[#104032]"
         >
-          Record
+          {locale === 'am' ? 'መዝገብ' : locale === 'om' ? 'Galmee' : 'Record'}
         </button>
       </div>
     </div>

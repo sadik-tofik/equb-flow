@@ -4,7 +4,7 @@
 import React from 'react';
 import type { UserSession } from '../lib/types';
 import { PageHeader, Button, TextInput, Sheet, Icon } from './ui';
-import { getLocale, setGlobalLocale, type Locale } from '../lib/i18n';
+import { useLocale, setGlobalLocale, type Locale } from '../lib/i18n';
 
 interface SettingsViewProps {
   user: UserSession;
@@ -13,20 +13,116 @@ interface SettingsViewProps {
   onSignOut: () => void;
 }
 
+const settingsCopy = {
+  en: {
+    title: 'Settings',
+    subtitle: 'Preferences, identity, and personal data controls.',
+    identityTitle: 'Identity',
+    identityDesc: 'Your pseudonym visible to other members of your circle.',
+    nicknameLabel: 'Nickname',
+    walletLabel: 'Wallet address:',
+    saveNickname: 'Save nickname',
+    nicknameSaved: 'Nickname saved.',
+    languageTitle: 'Language',
+    languageDesc: 'Choose your interface language.',
+    dataTitle: 'Your data',
+    dataDesc: 'Request an archive of your transaction history or account deletion.',
+    downloadData: 'Download my data',
+    deleteData: 'Delete my data',
+    legalTitle: 'Legal and safety',
+    terms: 'Terms of Service',
+    privacy: 'Privacy Policy',
+    security: 'Security Architecture',
+    signOut: 'Sign out',
+    downloadSheetTitle: 'Download my data',
+    deleteSheetTitle: 'Request data deletion',
+    downloadSheetDesc:
+      'We will compile your cryptographic contribution receipts, decision records, and payout transactions into a verifiable JSON archive.',
+    deleteSheetDesc:
+      'Submit a request to remove your off-chain pseudonym and session data according to our privacy policy. Public on-chain transactions cannot be deleted.',
+    confirmEmailLabel: 'Confirmation email address',
+    reqReceived: 'Request received. A confirmation link has been sent to your email.',
+    cancel: 'Cancel',
+    submitDeletion: 'Submit deletion request',
+    sendArchive: 'Send download archive',
+  },
+  am: {
+    title: 'ቅንብሮች',
+    subtitle: 'ምርጫዎች፣ ማንነት እና የግል መረጃ ቁጥጥሮች።',
+    identityTitle: 'ማንነት',
+    identityDesc: 'ለሌሎች የዕቁብዎ አባላት የሚታየው ቅጽል ስምዎ።',
+    nicknameLabel: 'ቅጽል ስም',
+    walletLabel: 'የኪስ ቦርሳ አድራሻ:',
+    saveNickname: 'ቅጽል ስም አስቀምጥ',
+    nicknameSaved: 'ቅጽል ስም ተቀምጧል።',
+    languageTitle: 'ቋንቋ',
+    languageDesc: 'የመተግበሪያውን ቋንቋ ይምረጡ።',
+    dataTitle: 'የእርስዎ መረጃ',
+    dataDesc: 'የግብይት ታሪክዎን ፋይል ወይም የሂሳብ ስረዛ ይጠይቁ።',
+    downloadData: 'መረጃዬን አውርድ',
+    deleteData: 'መረጃዬን ሰርዝ',
+    legalTitle: 'ህጋዊና ደህንነት',
+    terms: 'የአጠቃቀም ደንቦች',
+    privacy: 'የግላዊነት ፖሊሲ',
+    security: 'የደህንነት መዋቅር',
+    signOut: 'ውጣ',
+    downloadSheetTitle: 'መረጃዬን አውርድ',
+    deleteSheetTitle: 'የመረጃ ስረዛ ጥያቄ',
+    downloadSheetDesc:
+      'የክፍያ ደረሰኞችዎን፣ የውሳኔ መዝገቦችዎን እና የገንዘብ ዝውውሮችዎን በማይበረዝ የJSON ማህደር አዘጋጅተን እንልክልዎታለን።',
+    deleteSheetDesc:
+      'ከኦን-ቼይን ውጭ ያሉ ቅጽል ስሞችንና ክፍለ-ጊዜዎችን ለማስወገድ ጥያቄ ያቅርቡ። ይፋዊ የኦን-ቼይን ዝውውሮች ሊሰረዙ አይችሉም።',
+    confirmEmailLabel: 'የማረጋገጫ ኢሜይል አድራሻ',
+    reqReceived: 'ጥያቄዎ ደርሷል። የማረጋገጫ ማስፈንጠሪያ ወደ ኢሜይልዎ ተልኳል።',
+    cancel: 'ሰርዝ',
+    submitDeletion: 'የስረዛ ጥያቄ አስገባ',
+    sendArchive: 'የማውረጃ ፋይሉን ላክ',
+  },
+  om: {
+    title: 'Qindaa\'inoota',
+    subtitle: 'Filannoowwan, eenyummaa fi to\'annoo odeeffannoo dhuunfaa.',
+    identityTitle: 'Eenyummaa',
+    identityDesc: 'Maqaa fakkeessaa miseensota iqubii keessaniif mul\'atu.',
+    nicknameLabel: 'Maqaa fakkeessaa',
+    walletLabel: 'Teessoo boorsaa:',
+    saveNickname: 'Maqaa fakkeessaa olkaayi',
+    nicknameSaved: 'Maqaan fakkeessaa olkaawameera.',
+    languageTitle: 'Afaan',
+    languageDesc: 'Afaan tajaajilaa filadhaa.',
+    dataTitle: 'Odeeffannoo keessan',
+    dataDesc: 'Galmee seenaa kaffaltii keessanii buufachuuf yookiin herreega haquuf gaafadhaa.',
+    downloadData: 'Odeeffannoo koo buufadhu',
+    deleteData: 'Odeeffannoo koo haqi',
+    legalTitle: 'Seeraa fi nageenya',
+    terms: 'Qajeelfama fayyadamaa',
+    privacy: 'Imaammata dhuunfaa',
+    security: 'Ijaarsa nageenyaa',
+    signOut: 'Ba\'aa',
+    downloadSheetTitle: 'Odeeffannoo koo buufadhu',
+    deleteSheetTitle: 'Odeeffannoo akka haqamu gaafadhu',
+    downloadSheetDesc:
+      'Nagaheewwan gumaataa, galmee murtee fi kaffaltiiwwan kuusaa JSON mirkanaa\'e keessatti qindeessinee isiniif ergina.',
+    deleteSheetDesc:
+      'Maqaa fi odeeffannoo toora irraa alaa haquuf gaaffii dhiyeessaa. Kaffaltiiwwan toora irraa haqamuu hin danda\'an.',
+    confirmEmailLabel: 'Teessoo imeelii mirkaneessaa',
+    reqReceived: 'Gaaffiin keessan qaqqabeera. Hidhannoon mirkaneessaa imeelii keessaniin ergameera.',
+    cancel: 'Haqi',
+    submitDeletion: 'Gaaffii haquu dhiyeessi',
+    sendArchive: 'Kuusaa buufannaa ergi',
+  },
+};
+
 export function SettingsView({
   user,
   isCycleStarted = false,
   onUpdateNickname,
   onSignOut,
 }: SettingsViewProps) {
+  const locale = useLocale();
+  const c = settingsCopy[locale] || settingsCopy.en;
   const [nickname, setNickname] = React.useState(user.alias);
   const [savingNickname, setSavingNickname] = React.useState(false);
   const [nicknameSuccess, setNicknameSuccess] = React.useState(false);
-  const [selectedLanguage, setSelectedLanguage] = React.useState<Locale>('en');
-
-  React.useEffect(() => {
-    setSelectedLanguage(getLocale());
-  }, []);
 
   const [dataSheet, setDataSheet] = React.useState<'download' | 'delete' | null>(null);
   const [contactEmail, setContactEmail] = React.useState('');
@@ -60,35 +156,35 @@ export function SettingsView({
   return (
     <div className="select-none space-y-8">
       <PageHeader
-        title="Settings"
-        statusSentence="Preferences, identity, and personal data controls."
+        title={c.title}
+        statusSentence={c.subtitle}
       />
 
       {/* Identity & Nickname */}
       <div className="bg-paper-1 border border-line p-5">
         <h3 className="font-sans text-lead font-semibold text-ink-900 mb-1">
-          Identity
+          {c.identityTitle}
         </h3>
         <p className="font-sans text-secondary text-ink-500 mb-4">
-          Your pseudonym visible to other members of your circle.
+          {c.identityDesc}
         </p>
 
         <form onSubmit={handleSaveNickname} className="space-y-4 max-w-md">
           <TextInput
             id="nickname-input"
-            label="Nickname"
+            label={c.nicknameLabel}
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             disabled={isCycleStarted}
             helperText={
               isCycleStarted
-                ? 'Nickname is locked because the circle cycle has started.'
-                : 'You can change your nickname before the circle starts.'
+                ? (locale === 'am' ? 'ዕቁቡ ስለጀመረ ቅጽል ስም መቀየር አይቻልም።' : locale === 'om' ? 'Marsaan iqubii waan jalqabeef maqaa jijjiiruun hin danda\'amu.' : 'Nickname is locked because the circle cycle has started.')
+                : (locale === 'am' ? 'ዕቁቡ ከመጀመሩ በፊት ቅጽል ስምዎን መቀየር ይችላሉ።' : locale === 'om' ? 'Iqubiin eegaluun dura maqaa jijjiiruu dandeessu.' : 'You can change your nickname before the circle starts.')
             }
           />
 
           <div className="font-mono text-meta text-ink-500">
-            Wallet address: {user.walletAddress}
+            {c.walletLabel} {user.walletAddress}
           </div>
 
           {!isCycleStarted && (
@@ -99,11 +195,11 @@ export function SettingsView({
                 loading={savingNickname}
                 disabled={nickname === user.alias || !nickname.trim()}
               >
-                Save nickname
+                {c.saveNickname}
               </Button>
               {nicknameSuccess && (
                 <span className="font-sans text-meta text-spruce-700 font-medium">
-                  Nickname saved.
+                  {c.nicknameSaved}
                 </span>
               )}
             </div>
@@ -114,10 +210,10 @@ export function SettingsView({
       {/* Language */}
       <div className="bg-paper-1 border border-line p-5">
         <h3 className="font-sans text-lead font-semibold text-ink-900 mb-1">
-          Language
+          {c.languageTitle}
         </h3>
         <p className="font-sans text-secondary text-ink-500 mb-4">
-          Choose your interface language.
+          {c.languageDesc}
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-md">
@@ -132,11 +228,10 @@ export function SettingsView({
               key={lang.id}
               type="button"
               onClick={() => {
-                setSelectedLanguage(lang.id);
                 setGlobalLocale(lang.id);
               }}
               className={`p-3 text-left border transition-colors ${
-                selectedLanguage === lang.id
+                locale === lang.id
                   ? 'border-ink-900 bg-ink-900 text-paper-0 font-semibold'
                   : 'border-line bg-paper-0 text-ink-900 hover:bg-paper-2'
               }`}
@@ -146,7 +241,7 @@ export function SettingsView({
               </div>
               <div
                 className={`font-mono text-meta ${
-                  selectedLanguage === lang.id
+                  locale === lang.id
                     ? 'text-paper-1/70'
                     : 'text-ink-500'
                 }`}
@@ -161,10 +256,10 @@ export function SettingsView({
       {/* Data Requests */}
       <div className="bg-paper-1 border border-line p-5">
         <h3 className="font-sans text-lead font-semibold text-ink-900 mb-1">
-          Your data
+          {c.dataTitle}
         </h3>
         <p className="font-sans text-secondary text-ink-500 mb-4">
-          Request an archive of your transaction history or account deletion.
+          {c.dataDesc}
         </p>
 
         <div className="flex gap-3 flex-wrap">
@@ -173,7 +268,7 @@ export function SettingsView({
             size="sm"
             onClick={() => setDataSheet('download')}
           >
-            Download my data
+            {c.downloadData}
           </Button>
 
           <Button
@@ -181,7 +276,7 @@ export function SettingsView({
             size="sm"
             onClick={() => setDataSheet('delete')}
           >
-            Delete my data
+            {c.deleteData}
           </Button>
         </div>
       </div>
@@ -189,19 +284,19 @@ export function SettingsView({
       {/* Legal & Safety */}
       <div className="bg-paper-1 border border-line p-5">
         <h3 className="font-sans text-lead font-semibold text-ink-900 mb-2">
-          Legal and safety
+          {c.legalTitle}
         </h3>
         <div className="flex gap-4 text-secondary text-ink-700 underline flex-wrap">
           <a href="/terms" className="hover:text-ink-900">
-            Terms of Service
+            {c.terms}
           </a>
           <span>·</span>
           <a href="/privacy" className="hover:text-ink-900">
-            Privacy Policy
+            {c.privacy}
           </a>
           <span>·</span>
           <a href="/security" className="hover:text-ink-900">
-            Security Architecture
+            {c.security}
           </a>
         </div>
       </div>
@@ -209,7 +304,7 @@ export function SettingsView({
       {/* Sign out */}
       <div className="pt-2">
         <Button variant="secondary" size="md" onClick={onSignOut}>
-          Sign out
+          {c.signOut}
         </Button>
       </div>
 
@@ -219,20 +314,20 @@ export function SettingsView({
         onClose={() => setDataSheet(null)}
         title={
           dataSheet === 'download'
-            ? 'Download my data'
-            : 'Request data deletion'
+            ? c.downloadSheetTitle
+            : c.deleteSheetTitle
         }
       >
         <form onSubmit={handleDataRequest} className="space-y-4">
           <p className="font-sans text-secondary text-ink-700">
             {dataSheet === 'download'
-              ? 'We will compile your cryptographic contribution receipts, decision records, and payout transactions into a verifiable JSON archive.'
-              : 'Submit a request to remove your off-chain pseudonym and session data according to our privacy policy. Public on-chain transactions cannot be deleted.'}
+              ? c.downloadSheetDesc
+              : c.deleteSheetDesc}
           </p>
 
           <TextInput
             id="data-email"
-            label="Confirmation email address"
+            label={c.confirmEmailLabel}
             type="email"
             value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value)}
@@ -242,7 +337,7 @@ export function SettingsView({
 
           {dataRequestSent ? (
             <div className="p-3 bg-spruce-100 text-spruce-700 font-sans text-secondary font-medium">
-              Request received. A confirmation link has been sent to your email.
+              {c.reqReceived}
             </div>
           ) : (
             <div className="flex gap-3 pt-2">
@@ -253,7 +348,7 @@ export function SettingsView({
                 type="button"
                 onClick={() => setDataSheet(null)}
               >
-                Cancel
+                {c.cancel}
               </Button>
               <Button
                 variant={dataSheet === 'delete' ? 'destructive' : 'primary'}
@@ -261,7 +356,7 @@ export function SettingsView({
                 fullWidth
                 disabled={!contactEmail.includes('@')}
               >
-                {dataSheet === 'delete' ? 'Submit deletion request' : 'Send download archive'}
+                {dataSheet === 'delete' ? c.submitDeletion : c.sendArchive}
               </Button>
             </div>
           )}

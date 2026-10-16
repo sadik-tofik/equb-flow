@@ -16,6 +16,8 @@ import {
   Sheet,
   Stamp,
 } from './ui';
+import { useLocale } from '../lib/i18n';
+import { approvalInboxTranslations } from '../lib/app-translations';
 
 interface ApprovalInboxViewProps {
   proposals: ProposalView[];
@@ -28,6 +30,9 @@ export function ApprovalInboxView({
   onProposalUpdated,
   selectedProposalId,
 }: ApprovalInboxViewProps) {
+  const locale = useLocale();
+  const c = approvalInboxTranslations[locale] || approvalInboxTranslations.en;
+
   const [activeProposalId, setActiveProposalId] = React.useState<string | null>(selectedProposalId || null);
   const [confirmDecision, setConfirmDecision] = React.useState<'approve' | 'reject' | 'send_back' | null>(null);
   const [note, setNote] = React.useState('');
@@ -43,7 +48,7 @@ export function ApprovalInboxView({
     setFeedback(null);
     try {
       await api.voteProposal(activeProposal.id, confirmDecision, note ? note : undefined);
-      setFeedback(`Vote recorded: ${confirmDecision}`);
+      setFeedback(c.voteRecorded(confirmDecision));
       setConfirmDecision(null);
       setActiveProposalId(null);
       setNote('');
@@ -59,9 +64,9 @@ export function ApprovalInboxView({
     <div className="space-y-6 select-none">
       {/* Page Header (Section A0 & A6) */}
       <PageHeader
-        monoLabel="INBOX"
-        title="Approvals"
-        statusSentence="Decisions that need human review, with reasoning and evidence."
+        monoLabel={c.mono}
+        title={c.title}
+        statusSentence={c.statusSentence}
       />
 
       {feedback && (
@@ -75,7 +80,7 @@ export function ApprovalInboxView({
 
       {proposals.length === 0 ? (
         <EmptyState
-          sentence="Nothing needs your decision right now."
+          sentence={c.emptySentence}
           illustrationType="inbox"
         />
       ) : (
@@ -86,18 +91,18 @@ export function ApprovalInboxView({
               slipNumber={`No. P-${prop.id.slice(0, 4)}`}
               title={prop.title}
               isStamped={prop.status === 'approved'}
-              stampText="DECIDED"
+              stampText={c.decidedStamp}
               actions={
                 <div className="flex items-center justify-between pt-1">
                   <div className="font-mono text-meta text-ink-700">
-                    {prop.approvalsSoFar} of {prop.approvalsRequired} approvals so far
+                    {c.approvalsSoFar(prop.approvalsSoFar, prop.approvalsRequired)}
                   </div>
                   <Button
                     variant="primary"
                     size="sm"
                     onClick={() => setActiveProposalId(prop.id)}
                   >
-                    Open
+                    {c.open}
                   </Button>
                 </div>
               }
@@ -105,16 +110,16 @@ export function ApprovalInboxView({
               <div className="flex items-center gap-2 mb-2">
                 <StatusChip
                   status={prop.status === 'awaiting_approval' ? 'attention' : 'verified'}
-                  label={prop.status === 'awaiting_approval' ? 'Needs your decision' : 'Decided'}
+                  label={prop.status === 'awaiting_approval' ? c.needsDecision : c.decidedStamp}
                   icon="record"
                 />
               </div>
 
               <div className="text-secondary text-ink-700 mb-1">
-                The agent suggests: accept it.
+                {c.agentSuggests}
               </div>
               <div className="font-mono text-meta text-ink-500">
-                0.10 USDC · 40 minutes late
+                0.10 USDC · 40 min
               </div>
             </Slip>
           ))}
@@ -130,23 +135,27 @@ export function ApprovalInboxView({
         >
           <div className="space-y-5 select-none">
             <div className="font-mono text-meta text-ink-500">
-              {activeProposal.approvalsSoFar} of {activeProposal.approvalsRequired} approvals so far.
+              {c.approvalsSoFar(activeProposal.approvalsSoFar, activeProposal.approvalsRequired)}.
             </div>
 
             {/* WHAT HAPPENED */}
             <div className="space-y-1">
               <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-                What Happened
+                {c.whatHappened}
               </div>
               <p className="text-secondary text-ink-900 leading-relaxed">
-                Selam&apos;s payment arrived 40 minutes after the deadline. The amount is right.
+                {locale === 'am'
+                  ? 'የሰላም ክፍያ ከጊዜ ገደቡ 40 ደቂቃ ዘግይቶ ደርሷል። የገንዘቡ መጠን ትክክል ነው።'
+                  : locale === 'om'
+                  ? 'Kaffaltiin Saalaam yeroon erga darbee daqiiqaa 40 booda ga\'eera. Hammi isaa sirriidha.'
+                  : "Selam's payment arrived 40 minutes after the deadline. The amount is right."}
               </p>
             </div>
 
             {/* WHY THE AGENT SUGGESTS THIS */}
             <div className="p-4 bg-paper-0 border border-line space-y-1.5">
               <div className="font-mono text-meta font-semibold uppercase tracking-wider text-spruce-700">
-                Suggested by the group&apos;s assistant
+                {c.suggestedByAssistant}
               </div>
               <p className="text-secondary text-ink-900 leading-relaxed max-w-[600px]">
                 {activeProposal.reasoning}
@@ -156,7 +165,7 @@ export function ApprovalInboxView({
             {/* EVIDENCE (Ruled list of links) */}
             <div className="space-y-2">
               <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-                Evidence
+                {c.evidence}
               </div>
               <div className="border-t border-b border-line divide-y divide-line text-meta font-mono">
                 {activeProposal.evidence.map((ev, idx) => (
@@ -164,17 +173,17 @@ export function ApprovalInboxView({
                     <span className="text-ink-700">{ev.label}</span>
                     {ev.txUrl ? (
                       <Link href={ev.txUrl} isExternal className="text-meta">
-                        Open
+                        {c.open}
                       </Link>
                     ) : (
-                      <span className="text-ink-500">Open</span>
+                      <span className="text-ink-500">{c.open}</span>
                     )}
                   </div>
                 ))}
                 <div className="py-2.5 flex justify-between items-center">
-                  <span className="text-ink-700">Rule 2: late payments</span>
+                  <span className="text-ink-700">{c.ruleRef}</span>
                   <span className="text-spruce-700 underline underline-offset-2 cursor-pointer">
-                    Open
+                    {c.open}
                   </span>
                 </div>
               </div>
@@ -183,7 +192,7 @@ export function ApprovalInboxView({
             {/* IF YOU APPROVE */}
             <div className="space-y-1 pt-1">
               <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-                If You Approve
+                {c.ifYouApprove}
               </div>
               <p className="text-secondary text-ink-700 leading-relaxed">
                 {activeProposal.consequence}
@@ -194,8 +203,8 @@ export function ApprovalInboxView({
             {activeProposal.canAct ? (
               <div className="pt-3 border-t border-line space-y-4">
                 <TextInput
-                  label="Optional note"
-                  placeholder="Reason for your decision"
+                  label={c.optionalNote}
+                  placeholder={c.notePlaceholder}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                 />
@@ -206,21 +215,21 @@ export function ApprovalInboxView({
                     className="flex-1"
                     onClick={() => setConfirmDecision('approve')}
                   >
-                    Approve
+                    {c.approve}
                   </Button>
                   <Button
                     variant="secondary"
                     className="flex-1"
                     onClick={() => setConfirmDecision('send_back')}
                   >
-                    Send back
+                    {c.sendBack}
                   </Button>
                   <Button
                     variant="destructive"
                     className="flex-1"
                     onClick={() => setConfirmDecision('reject')}
                   >
-                    Reject
+                    {c.reject}
                   </Button>
                 </div>
               </div>
@@ -228,11 +237,11 @@ export function ApprovalInboxView({
               <div className="p-4 bg-paper-2 border border-line text-meta text-ink-700">
                 {activeProposal.status === 'approved' ? (
                   <div className="flex items-center gap-2">
-                    <Stamp text="DECIDED" animated={true} />
-                    <span>Decision recorded on chain.</span>
+                    <Stamp text={c.decidedStamp} animated={true} />
+                    <span>{c.decidedOnChain}</span>
                   </div>
                 ) : (
-                  <span>You cannot decide this one because it involves you.</span>
+                  <span>{c.beneficiaryLock}</span>
                 )}
               </div>
             )}
@@ -245,14 +254,14 @@ export function ApprovalInboxView({
         <Sheet
           isOpen={Boolean(confirmDecision)}
           onClose={() => setConfirmDecision(null)}
-          title={`Confirm ${confirmDecision}`}
+          title={c.confirmTitle(confirmDecision)}
         >
           <div className="space-y-4 select-none">
             <p className="text-secondary text-ink-700 leading-relaxed">
-              You are about to submit your vote: <strong className="text-ink-900 uppercase">{confirmDecision}</strong> for &quot;{activeProposal.title}&quot;.
+              {c.confirmPrompt(confirmDecision, activeProposal.title)}
             </p>
             <div className="p-3 bg-paper-0 border border-line text-meta text-ink-700">
-              <strong>Effect:</strong> {activeProposal.consequence}
+              <strong>{c.confirmEffect}</strong> {activeProposal.consequence}
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -262,7 +271,7 @@ export function ApprovalInboxView({
                 onClick={() => setConfirmDecision(null)}
                 disabled={actionLoading}
               >
-                Back
+                {c.back}
               </Button>
               <Button
                 variant="primary"
@@ -270,7 +279,7 @@ export function ApprovalInboxView({
                 loading={actionLoading}
                 onClick={handleVote}
               >
-                Confirm decision
+                {c.confirmDecision}
               </Button>
             </div>
           </div>

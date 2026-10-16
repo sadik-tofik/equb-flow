@@ -32,7 +32,34 @@ export function setGlobalLocale(locale: Locale): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('equbflow_locale', locale);
     document.documentElement.lang = locale;
+    window.dispatchEvent(new CustomEvent('localechange', { detail: locale }));
   }
+}
+
+export function useLocale(): Locale {
+  const [locale, setLocale] = React.useState<Locale>('en');
+
+  React.useEffect(() => {
+    setLocale(getLocale());
+
+    const handleLocaleChange = (e: any) => {
+      if (e && e.detail) {
+        setLocale(e.detail);
+      } else {
+        setLocale(getLocale());
+      }
+    };
+
+    window.addEventListener('localechange', handleLocaleChange);
+    window.addEventListener('storage', handleLocaleChange);
+
+    return () => {
+      window.removeEventListener('localechange', handleLocaleChange);
+      window.removeEventListener('storage', handleLocaleChange);
+    };
+  }, []);
+
+  return locale;
 }
 
 export function t(
@@ -73,6 +100,21 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = initial;
     }
+
+    const handleLocaleChange = (e: any) => {
+      if (e && e.detail) {
+        setLocaleState(e.detail);
+      } else {
+        setLocaleState(getLocale());
+      }
+    };
+
+    window.addEventListener('localechange', handleLocaleChange);
+    window.addEventListener('storage', handleLocaleChange);
+    return () => {
+      window.removeEventListener('localechange', handleLocaleChange);
+      window.removeEventListener('storage', handleLocaleChange);
+    };
   }, []);
 
   const changeLocale = React.useCallback((newLocale: Locale) => {

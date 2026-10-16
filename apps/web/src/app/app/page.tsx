@@ -27,8 +27,13 @@ import { PayFlowModal } from '../../components/PayFlowModal';
 import { SignInView } from '../../components/SignInView';
 import { CreateGroupWizardModal } from '../../components/CreateGroupWizardModal';
 import { SlipSkeleton, Stamp, Link } from '../../components/ui';
+import { useLocale } from '../../lib/i18n';
+import { rightColumnTranslations } from '../../lib/translations';
 
 export default function GroupHomePage() {
+  const locale = useLocale();
+  const rc = rightColumnTranslations[locale] || rightColumnTranslations.en;
+
   const [user, setUser] = React.useState<UserSession | null>(null);
   const [group, setGroup] = React.useState<GroupSummary | null>(null);
   const [obligation, setObligation] = React.useState<MyObligation | null>(null);
@@ -177,16 +182,16 @@ export default function GroupHomePage() {
           <div className="space-y-6">
             <div>
               <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-2">
-                Why this deadline?
+                {rc.whyDeadlineTitle}
               </div>
               <p className="text-secondary text-ink-700 leading-relaxed mb-3">
-                Deadlines use Arc Testnet block timestamps. If a contribution arrives within the 2-hour grace period, it may be accepted by consensus.
+                {rc.whyDeadlineDesc}
               </p>
             </div>
 
             <div className="border-t border-line pt-4">
               <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500 mb-2">
-                Latest confirmed receipt
+                {rc.latestReceiptTitle}
               </div>
               <div className="p-3 bg-paper-1 border border-line space-y-2">
                 <div className="flex justify-between items-center">
@@ -204,7 +209,7 @@ export default function GroupHomePage() {
 
             <div className="border-t border-line pt-4 text-meta text-ink-500">
               <Link href="/audit/grp-alpha-001" isExternal className="text-spruce-700 underline">
-                Open public audit view &gt;&gt;
+                {rc.openAuditLink}
               </Link>
             </div>
           </div>
@@ -214,13 +219,13 @@ export default function GroupHomePage() {
         return (
           <div className="space-y-4">
             <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-              Why human approvals?
+              {rc.whyHumanTitle}
             </div>
             <p className="text-secondary text-ink-700 leading-relaxed">
-              EqubFlow pairs an AI assistant that analyzes discrepancies with a deterministic safety gate. Model recommendations never move funds without rule verification and group consensus.
+              {rc.whyHumanDesc}
             </p>
             <div className="p-3 bg-paper-2 border border-line text-meta text-ink-700 font-mono">
-              Consensus requirement: 2 approvals
+              {rc.consensusReq}
             </div>
           </div>
         );
@@ -229,10 +234,10 @@ export default function GroupHomePage() {
         return (
           <div className="space-y-4">
             <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-              Zero Rounding Policy
+              {rc.zeroRoundingTitle}
             </div>
             <p className="text-secondary text-ink-700 leading-relaxed">
-              Every difference is recorded to the exact 6-decimal USDC base unit. Differences are never rounded away or absorbed into fee margins.
+              {rc.zeroRoundingDesc}
             </p>
           </div>
         );
@@ -241,10 +246,10 @@ export default function GroupHomePage() {
         return (
           <div className="space-y-4">
             <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-              Cryptographic Tamper-Evidence
+              {rc.tamperTitle}
             </div>
             <p className="text-secondary text-ink-700 leading-relaxed">
-              Every record entry contains the SHA-256 hash of the preceding entry. Modifying any historical row breaks the cryptographic chain for all subsequent entries.
+              {rc.tamperDesc}
             </p>
           </div>
         );
@@ -253,10 +258,10 @@ export default function GroupHomePage() {
         return (
           <div className="space-y-4">
             <div className="font-mono text-meta font-semibold uppercase tracking-wider text-ink-500">
-              Safety Architecture
+              {rc.safetyTitle}
             </div>
             <p className="text-secondary text-ink-700 leading-relaxed">
-              Built for Tameion Agents Hackathon on Arc Testnet. Funds are held in a deterministic safety gate.
+              {rc.safetyDesc}
             </p>
           </div>
         );
