@@ -236,7 +236,7 @@ print("Audited Fingerprint:", record_hash)`}
               <span className="font-mono text-body font-semibold text-ink-900">/api/auth/sign-in</span>
             </div>
             <p className="text-secondary text-ink-700">
-              Sends a 6-digit OTP code to the requested email address via Supabase Auth.
+              Sends a verification OTP code to the requested email address via Supabase Auth.
             </p>
             <CodeBlock
               filePath="Request Payload"
@@ -253,13 +253,13 @@ print("Audited Fingerprint:", record_hash)`}
               <span className="font-mono text-body font-semibold text-ink-900">/api/auth/verify</span>
             </div>
             <p className="text-secondary text-ink-700">
-              Verifies the 6-digit OTP code and establishes an HTTP-only secure cookie session.
+              Verifies the 6-digit or 8-digit OTP code and establishes an HTTP-only secure cookie session.
             </p>
             <CodeBlock
               filePath="Request Payload"
               code={`{
   "email": "user@example.com",
-  "token": "492810"
+  "token": "49281085"
 }`}
             />
           </div>

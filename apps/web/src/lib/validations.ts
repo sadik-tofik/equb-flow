@@ -47,7 +47,7 @@ export const SignInSchema = z.object({
 
 export const VerifyOtpSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  token: z.string().min(6, 'Verification code must be at least 6 digits').max(8),
+  token: z.string().trim().min(6, 'Verification code must be at least 6 digits').max(8, 'Verification code cannot exceed 8 digits'),
 });
 
 export type CreateGroupInputData = z.infer<typeof CreateGroupSchema>;

@@ -150,9 +150,12 @@ describe('apps/web: Zod Validation Schemas (TDD 9.2 & FR-01)', () => {
       expect(SignInSchema.safeParse({ email: 'not-an-email' }).success).toBe(false);
     });
 
-    it('validates 6-digit verification code', () => {
+    it('validates 6-digit and 8-digit verification code with trimming', () => {
       expect(VerifyOtpSchema.safeParse({ email: 'valid@example.com', token: '123456' }).success).toBe(true);
+      expect(VerifyOtpSchema.safeParse({ email: 'valid@example.com', token: '12345678' }).success).toBe(true);
+      expect(VerifyOtpSchema.safeParse({ email: 'valid@example.com', token: '  12345678  ' }).success).toBe(true);
       expect(VerifyOtpSchema.safeParse({ email: 'valid@example.com', token: '123' }).success).toBe(false);
+      expect(VerifyOtpSchema.safeParse({ email: 'valid@example.com', token: '123456789' }).success).toBe(false);
     });
   });
 });

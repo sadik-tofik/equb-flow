@@ -77,10 +77,16 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
   };
 
   const handleVerifyCode = async (submittedCode?: string) => {
-    const codeToVerify = submittedCode || code;
+    const codeToVerify = (submittedCode || code).trim();
     setError(null);
-    if (codeToVerify.trim().length !== 6) {
-      setError(t('auth.code_wrong', undefined, language));
+    if (codeToVerify.length !== 6 && codeToVerify.length !== 8) {
+      setError(
+        language === 'am'
+          ? 'እባክዎ ባለ 6 ወይም 8 አሃዝ የማረጋገጫ ኮድ ያስገቡ።'
+          : language === 'om'
+          ? 'Koodii mirkaneessaa dijiitii 6 ykn 8 galchaa.'
+          : 'Please enter a valid 6 or 8-digit verification code.'
+      );
       return;
     }
     setLoading(true);
@@ -251,6 +257,8 @@ export function SignInView({ onSignInSuccess, onCancel }: SignInViewProps) {
             disabled={loading}
             resendCountdown={countdown}
             onResend={handleResend}
+            length={8}
+            allowLengthToggle={true}
           />
 
           <div className="space-y-3 pt-2">
